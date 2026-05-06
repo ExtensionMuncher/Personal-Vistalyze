@@ -74,6 +74,7 @@ export function bindImportEvents(handlers) {
             
             renderChats(name, avatar, chatSummaries);
         } catch (err) {
+            console.error('[Vistalyze] Scan failed details:', err); // ADD THIS LINE
             $('#lz-import-body').html(`<p style="text-align:center; padding:20px; color:var(--SmartThemeErrorColor);">${translate('Scan failed. See console.')}</p>`);
         }
     });
