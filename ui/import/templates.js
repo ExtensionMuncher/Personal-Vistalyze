@@ -37,7 +37,7 @@ export function getCharacterGridHTML(characters) {
     const items = characters.map(c => `
         <div class="lz-import-char-card" data-avatar="${escapeHtml(c.avatar)}" data-name="${escapeHtml(c.name)}"
              style="cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid transparent; transition:all 0.2s;">
-            <img src="${escapeHtml(c.avatar)}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid var(--SmartThemeBorderColor);" />
+            img src="characters/${escapeHtml(c.avatar)}" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid var(--SmartThemeBorderColor);" />
             <span style="font-size:0.9em; text-align:center; font-weight:bold;">${escapeHtml(c.name)}</span>
         </div>
     `).join('');
