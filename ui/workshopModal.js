@@ -1,16 +1,16 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshopModal.js
- * @stamp {"utc":"2026-05-06T23:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T15:00:00.000Z"}
  * @architectural-role UI Orchestrator
  * @description
  * High-level coordinator for the Location Workshop. 
- * Updated to synchronize imported data when returning from the Global Library.
+ * Updated to implement tab-specific visibility for footer buttons.
  *
  * @updates
- * - Enhanced openWorkshop: Now calls syncDrafts() to ensure the draft state 
- *   reflects any new locations imported from the Global Library.
- * - Standardized renderLibrary: Preserves the sourceSessionId logic for 
- *   imported location thumbnails.
+ * - Standardized Terminology: Replaced "Select existing" with "Pick from Gallery".
+ * - Tab-Specific Logic: Moved visibility management to switchTab. 
+ * - Explorer Focus: Ensures both manual buttons are hidden in the Explorer tab.
+ * - Library Cleanup: Removed gallery button manipulation from renderLibrary.
  *
  * @api-declaration
  * renderLibrary()   — updates the Library tab content.
@@ -43,18 +43,6 @@ export function renderLibrary() {
     const drafts = Object.entries(state._draftLocations);
     const html = getLibraryListHTML(drafts, state.currentLocation, state.allFileIndex, state.sessionId);
     $('.lz-library-list').html(html);
-
-    // Sync footer button text if we have an active key
-    const key = state._activeWorkshopKey;
-    const draft = state._draftLocations[key];
-    const $altBtn = $('#lz-workshop-alt-bg');
-
-    if (!draft) {
-        $altBtn.text(translate('Select existing')).prop('disabled', true);
-    } else {
-        const text = draft.customBg ? translate('Clear manual selection') : translate('Select existing');
-        $altBtn.text(text).prop('disabled', false);
-    }
 }
 
 /**
@@ -73,12 +61,13 @@ export async function renderArchitect() {
 
     if (!draft) {
         $container.html(getArchitectEmptyHTML());
-        $altBtn.text(translate('Select existing')).prop('disabled', true);
+        // Fix standard text even in empty state
+        $altBtn.text(translate('Pick from Gallery')).prop('disabled', true);
         return;
     }
 
-    // Toggle footer button text based on customBg state
-    const altBtnText = draft.customBg ? translate('Clear manual selection') : translate('Select existing');
+    // Toggle footer button text based on customBg state (Fixed label consistency)
+    const altBtnText = draft.customBg ? translate('Clear manual selection') : translate('Pick from Gallery');
     $altBtn.text(altBtnText).prop('disabled', false);
 
     // Resolve Image: Custom > Borrowed (Source Session) > Native (Current Session)
@@ -112,6 +101,13 @@ export function switchTab(tabName) {
     
     $('.lz-tab-panel').addClass('lz-hidden');
     $(`#lz-tab-${tabName}`).removeClass('lz-hidden');
+
+    // Visibility Pass: Show/Hide footer actions based on context
+    // Library: Show Global Library, Hide Pick from Gallery
+    // Architect: Hide Global Library, Show Pick from Gallery
+    // Explorer: Hide both
+    $('#lz-workshop-global-lib').toggleClass('lz-hidden', tabName !== 'library');
+    $('#lz-workshop-alt-bg').toggleClass('lz-hidden', tabName !== 'architect');
 
     if (tabName === 'library') renderLibrary();
     if (tabName === 'architect') renderArchitect();

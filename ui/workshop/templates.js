@@ -1,14 +1,13 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshop/templates.js
- * @stamp {"utc":"2026-05-06T21:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T14:35:00.000Z"}
  * @architectural-role Pure UI Templates
  * @description
  * Pure functions for generating the Location Workshop HTML. 
  *
  * @updates
- * - Added "Global Library" button to the workshop footer.
- * - Updated getLibraryListHTML to support sourceSessionId for image resolution, 
- *   ensuring imported locations display thumbnails correctly.
+ * - Standardized footer buttons: Added lz-hidden to #lz-workshop-global-lib and #lz-workshop-alt-bg.
+ * - terminology fix: Updated fallback text for #lz-workshop-alt-bg to "Pick from Gallery".
  *
  * @api-declaration
  * getBaseWorkshopHTML(sessionId) -> string
@@ -72,8 +71,8 @@ export function getBaseWorkshopHTML(sessionId) {
             <div class="lz-workshop-controls">
                 <!-- Left-aligned actions -->
                 <div style="display:flex; gap:10px;">
-                    <button id="lz-workshop-global-lib" class="menu_button" data-i18n="vistalyze.workshop.btn_global_library">Global Library</button>
-                    <button id="lz-workshop-alt-bg" class="menu_button" data-i18n="vistalyze.workshop.btn_hijack">Select existing</button>
+                    <button id="lz-workshop-global-lib" class="menu_button lz-hidden" data-i18n="vistalyze.workshop.btn_global_library">Global Library</button>
+                    <button id="lz-workshop-alt-bg" class="menu_button lz-hidden" data-i18n="vistalyze.workshop.btn_hijack">Pick from Gallery</button>
                 </div>
                 
                 <!-- Right-aligned action group -->

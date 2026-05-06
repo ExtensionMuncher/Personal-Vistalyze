@@ -1,13 +1,13 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshop/listeners.js
- * @stamp {"utc":"2026-05-06T22:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T15:05:00.000Z"}
  * @architectural-role UI Event Listeners
  * @description
  * Centralizes all DOM event bindings for the Location Workshop modal.
  *
  * @updates
- * - Added listener for #lz-workshop-global-lib to transition to the Global Library.
- * - Re-mapped "Select Existing" logic to the global footer button #lz-workshop-alt-bg.
+ * - Standardized Warning: Updated "Select a location" warning to use "Pick from Gallery" context.
+ * - Refresh Logic: Ensures renderArchitect is called after customBg changes to update the button label.
  *
  * @api-declaration
  * bindWorkshopEvents(handlers) -> void
