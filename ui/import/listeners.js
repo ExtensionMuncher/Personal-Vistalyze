@@ -22,8 +22,8 @@
  *     external_io: [importController.js, templates.js, callPopup, JQuery DOM]
  */
 
-import { callPopup } from '../../../../../script.js';
-import { t, translate } from '../../../../i18n.js';
+import { callPopup } from '../../../../../../script.js';
+import { t, translate } from '../../../../../i18n.js';
 import { state } from '../../state.js';
 import { 
     fetchCharacterChats, 
