@@ -30,7 +30,7 @@
 import { saveChatConditional } from '../../../../../script.js';
 import { t, translate } from '../../../../i18n.js';
 import { getContext } from '../../../../extensions.js';
-import { log, error } from '../utils/logger.js';
+import { log, warn, error } from '../utils/logger.js';
 import { 
     state, 
     updateState, 
@@ -137,8 +137,8 @@ export async function handleFinalizeWorkshop(targetKey, forceRegen = false) {
         targetFilename = `vistalyze_${state.sessionId}_${targetKey}.png`;
     }
 
-    // Existence check against full file index
-    const fileExists = state.fileIndex.has(targetFilename);
+    // Existence check against the full cross-session index so borrowed files are found
+    const fileExists = state.allFileIndex.has(targetFilename);
 
     // Detect if the visual state changed
     const visualsModified = original && (

@@ -41,7 +41,7 @@ import { bindWorkshopEvents } from './workshop/listeners.js';
  */
 export function renderLibrary() {
     const drafts = Object.entries(state._draftLocations);
-    const html = getLibraryListHTML(drafts, state.currentLocation, state.fileIndex, state.sessionId);
+    const html = getLibraryListHTML(drafts, state.currentLocation, state.allFileIndex, state.sessionId);
     $('.lz-library-list').html(html);
 
     // Sync footer button text if we have an active key
@@ -85,7 +85,7 @@ export async function renderArchitect() {
     const sourceId = draft.sourceSessionId || state.sessionId;
     const filename = draft.customBg || (sourceId ? `vistalyze_${sourceId}_${key}.png` : null);
 
-    const currentImgUrl = (filename && (!!draft.customBg || state.fileIndex.has(filename)))
+    const currentImgUrl = (filename && (!!draft.customBg || state.allFileIndex.has(filename)))
         ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` 
         : '';
         

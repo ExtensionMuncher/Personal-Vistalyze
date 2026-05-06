@@ -1,16 +1,16 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/import/listeners.js
- * @stamp {"utc":"2026-05-06T19:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T22:30:00.000Z"}
  * @architectural-role UI Event Listeners
  * @description
  * Centralizes all DOM event bindings for the Global Library (Import) modal.
  *
  * @updates
- * - Implemented Character -> Chat folder navigation.
- * - Implemented accordion toggling for chat folders.
- * - Implemented collision resolution logic (Skip/Overwrite/Rename).
- * - Added hover preview tooltips for bulk import actions.
- * - Integrated character-scoped scan logic via importController.js.
+ * - Deadlock Fix: Awaits the popupPromise to resolve the behavior selection 
+ *   if the dialog is dismissed via native controls.
+ * - Snippet Integration: Updated to consume the new result object from 
+ *   scanChat ({ locations, snippet }).
+ * - Satisfying Feedback: Added visual success states for bulk imports.
  *
  * @api-declaration
  * bindImportEvents(handlers) -> void
@@ -58,18 +58,19 @@ export function bindImportEvents(handlers) {
             const chatFiles = await fetchCharacterChats(avatar);
             const chatSummaries = [];
 
-            // Fast-pass scan for each chat to check for location counts
-            for (const filename of chatFiles) {
-                const locations = await scanChat(avatar, filename, name);
-                if (locations.length > 0) {
+            // Parallel fast-pass scan for each chat
+            const scans = chatFiles.map(filename => scanChat(avatar, filename, name));
+            const results = await Promise.all(scans);
+
+            results.forEach((res, idx) => {
+                if (res.locations?.length > 0) {
                     chatSummaries.push({
-                        filename,
-                        count: locations.length,
-                        // Attempt to extract snippet from first message
-                        snippet: locations[0].chatSnippet || '' 
+                        filename: chatFiles[idx],
+                        count: res.locations.length,
+                        snippet: res.snippet || '' 
                     });
                 }
-            }
+            });
             
             renderChats(name, avatar, chatSummaries);
         } catch (err) {
@@ -87,7 +88,7 @@ export function bindImportEvents(handlers) {
 
     // Toggle accordion
     $overlay.on('click', '.lz-folder-header', async function(e) {
-        if ($(e.target).closest('.lz-import-all-btn').length) return; // Ignore if clicking button
+        if ($(e.target).closest('.lz-import-all-btn').length) return;
 
         const $folder = $(this).closest('.lz-import-folder');
         const $content = $folder.find('.lz-folder-content');
@@ -100,8 +101,8 @@ export function bindImportEvents(handlers) {
             $content.html(`<div style="padding:10px; opacity:0.5;"><i class="fa-solid fa-spinner fa-spin"></i></div>`).removeClass('lz-hidden');
             $chevron.css('transform', 'rotate(180deg)');
             
-            const locations = await scanChat(avatar, filename, charName);
-            $content.html(getExpandedLocationsHTML(locations, state.fileIndex));
+            const { locations } = await scanChat(avatar, filename, charName);
+            $content.html(getExpandedLocationsHTML(locations, state.allFileIndex));
         } else {
             $content.addClass('lz-hidden');
             $chevron.css('transform', 'rotate(0deg)');
@@ -116,10 +117,13 @@ export function bindImportEvents(handlers) {
         const avatar = $('#lz-import-current-avatar').val();
         const charName = $('#lz-import-current-name').val();
         
-        const locations = await scanChat(avatar, filename, charName);
+        const { locations } = await scanChat(avatar, filename, charName);
         const names = locations.map(l => l.name).slice(0, 5);
         let tip = names.join(', ');
-        if (locations.length > 5) tip += t` and ${locations.length - 5} more...`;
+        if (locations.length > 5) {
+            const remaining = locations.length - 5;
+            tip += ` ${translate('and')} ${remaining} ${translate('more...')}`;
+        }
         
         $(this).attr('title', `${translate('Imports:')} ${tip}`);
     });
@@ -137,17 +141,26 @@ export function bindImportEvents(handlers) {
             const popupPromise = callPopup(getCollisionModalHTML(importList.length, conflicts.length), 'text');
             
             behavior = await new Promise((resolve) => {
-                $('#lz-collision-skip').on('click', () => { $('#dialog_overlay .menu_button:last').click(); resolve('skip'); });
-                $('#lz-collision-overwrite').on('click', () => { $('#dialog_overlay .menu_button:last').click(); resolve('overwrite'); });
-                $('#lz-collision-rename').on('click', () => { $('#dialog_overlay .menu_button:last').click(); resolve('rename'); });
-                // If closed without choice, default to null (cancel)
+                let resolved = false;
+                const cleanup = (val) => {
+                    resolved = true;
+                    $('#dialog_overlay .menu_button:last').click(); // Native ST close
+                    resolve(val);
+                };
+
+                $('#lz-collision-skip').on('click', () => cleanup('skip'));
+                $('#lz-collision-overwrite').on('click', () => cleanup('overwrite'));
+                $('#lz-collision-rename').on('click', () => cleanup('rename'));
+
+                // Safety: Resolve to null (cancel) if dismissed via native controls
+                popupPromise.then(() => { if (!resolved) resolve(null); });
             });
         }
 
         if (!behavior) return;
 
         const count = await performImport(importList, behavior);
-        if (window.toastr) window.toastr.success(t`Imported ${count} locations successfully.`, 'Vistalyze');
+        if (window.toastr) window.toastr.success(translate('vistalyze.import.success_count').replace('{{count}}', count), 'Vistalyze');
     }
 
     // Bulk Import All
@@ -162,7 +175,7 @@ export function bindImportEvents(handlers) {
         const originalHtml = $btn.html();
         $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
 
-        const locations = await scanChat(avatar, filename, charName);
+        const { locations } = await scanChat(avatar, filename, charName);
         await resolveAndImport(locations);
 
         $btn.html('<i class="fa-solid fa-check"></i>').addClass('success');
@@ -177,7 +190,8 @@ export function bindImportEvents(handlers) {
         const $folder = $(this).closest('.lz-import-folder');
         const filename = $folder.data('filename');
 
-        const chatLocations = state._importCache.locationLibrary[filename] || [];
+        const cache = state._importCache.locationLibrary[filename] || {};
+        const chatLocations = cache.locations || [];
         const loc = chatLocations.find(l => l.key === key);
         
         if (loc) {

@@ -68,7 +68,7 @@ export async function fetchCharacterChats(avatarUrl) {
 
 /**
  * Scans a foreign chat file for Vistalyze location definitions.
- * Caches result in state._importCache.
+ * @returns {Promise<{locations: object[], snippet: string}>}
  */
 export async function scanChat(avatarUrl, chatFilename, characterName) {
     if (state._importCache.locationLibrary[chatFilename]) {
@@ -123,8 +123,12 @@ export async function scanChat(avatarUrl, chatFilename, characterName) {
         }
     }
 
-    setImportCache('locationLibrary', chatFilename, discovered);
-    return discovered;
+    const lastMsg = [...messages].reverse().find(m => typeof m.mes === 'string' && m.mes.trim().length > 0);
+    const snippet = lastMsg ? lastMsg.mes.trim().replace(/\s+/g, ' ').slice(0, 120) : '';
+
+    const result = { locations: discovered, snippet };
+    setImportCache('locationLibrary', chatFilename, result);
+    return result;
 }
 
 /**

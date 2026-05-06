@@ -1,19 +1,19 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/import/templates.js
- * @stamp {"utc":"2026-05-06T18:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T22:45:00.000Z"}
  * @architectural-role Pure UI Templates
  * @description
  * Generates HTML for the Global Library import interface.
  *
  * @updates
- * - Implemented Character Selection Grid.
- * - Implemented "Mini-Folder" Chat Rows with Hero Date, Snippets, and Count Badges.
- * - Implemented Expanded Location View with thumbnail previews.
- * - Added data-i18n attributes for localization compliance.
+ * - Snippet Integration: Fixed folder row layout to properly display the 
+ *   memory-jogging snippet extracted by the controller.
+ * - Thumbnail Resolution: Updated expanded view to allow thumbnails to 
+ *   resolve via the cross-session file index.
  *
  * @api-declaration
  * getCharacterGridHTML(characters) -> string
- * getChatFolderHTML(chat, locationsCount) -> string
+ * getChatFolderHTML(chatInfo, locationsCount) -> string
  * getExpandedLocationsHTML(locations, fileIndex) -> string
  * getCollisionModalHTML(total, conflictCount) -> string
  *
@@ -75,21 +75,20 @@ export function getChatFolderHTML(chatInfo, locationsCount) {
          style="display:flex; flex-direction:column; background:rgba(0,0,0,0.15); border:1px solid var(--SmartThemeBorderColor); border-radius:6px; margin-bottom:8px; overflow:hidden;">
         
         <div class="lz-folder-header" style="display:flex; align-items:center; justify-content:space-between; padding:10px 15px; cursor:pointer;">
-            <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+            <div style="flex:1; display:flex; flex-direction:column; gap:2px; min-width: 0;">
                 <strong style="font-size:0.95em;">${escapeHtml(dateStr)}</strong>
-                <small style="opacity:0.6; font-size:0.85em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:400px;">
+                <small style="opacity:0.6; font-size:0.85em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display: block;">
                     ${escapeHtml(chatInfo.snippet || '...') }
                 </small>
             </div>
             
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span class="lz-import-badge" style="background:var(--SmartThemeQuoteColor); color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold;">
+            <div style="display:flex; align-items:center; gap:12px; margin-left: 10px;">
+                <span class="lz-import-badge" style="background:var(--SmartThemeQuoteColor); color:white; padding:2px 8px; border-radius:10px; font-size:0.75em; font-weight:bold; white-space: nowrap;">
                     <i class="fa-solid fa-location-dot"></i> ${locationsCount}
                 </span>
                 <button class="menu_button lz-import-all-btn" 
                         data-i18n="[title]vistalyze.import.import_all_title"
-                        title="Import all locations from this chat"
-                        style="padding:4px 10px; font-size:0.8em;">
+                        style="padding:4px 10px; font-size:0.8em; white-space: nowrap;">
                     <i class="fa-solid fa-file-import"></i> <span data-i18n="vistalyze.import.btn_all">Import All</span>
                 </button>
                 <i class="fa-solid fa-chevron-down lz-folder-toggle" style="opacity:0.5; transition:transform 0.2s;"></i>
@@ -105,7 +104,7 @@ export function getChatFolderHTML(chatInfo, locationsCount) {
 /**
  * Renders the thumbnails and names for the expanded folder view.
  * @param {object[]} locations 
- * @param {Set} fileIndex Global file index for current session visibility
+ * @param {Set} fileIndex The cross-session allFileIndex for visibility checks
  * @returns {string}
  */
 export function getExpandedLocationsHTML(locations, fileIndex) {
@@ -113,8 +112,10 @@ export function getExpandedLocationsHTML(locations, fileIndex) {
         const sourceId = loc.sourceSessionId || loc.sessionId;
         const filename = loc.customBg || (sourceId ? `vistalyze_${sourceId}_${loc.key}.png` : null);
         
-        // Note: Thumbnails use the source ID to find the correct file
-        const thumbUrl = filename ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` : null;
+        // Thumbnails resolve via the source ID.
+        // Presence is checked against the global cross-session index.
+        const hasImage = filename && (!!loc.customBg || fileIndex.has(filename));
+        const thumbUrl = hasImage ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` : null;
 
         return `
         <div class="lz-import-item" data-key="${escapeHtml(loc.key)}" 
@@ -122,11 +123,11 @@ export function getExpandedLocationsHTML(locations, fileIndex) {
             <div style="width:60px; height:34px; border-radius:4px; overflow:hidden; background:rgba(0,0,0,0.3); flex-shrink:0;">
                 ${thumbUrl ? `<img src="${thumbUrl}" style="width:100%; height:100%; object-fit:cover;" />` : `<i class="fa-solid fa-image" style="display:flex; align-items:center; justify-content:center; height:100%; opacity:0.2;"></i>`}
             </div>
-            <div style="flex:1; display:flex; flex-direction:column;">
-                <span style="font-size:0.9em; font-weight:bold;">${escapeHtml(loc.name)}</span>
-                <small style="font-size:0.75em; opacity:0.6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:250px;">${escapeHtml(loc.description)}</small>
+            <div style="flex:1; display:flex; flex-direction:column; min-width: 0;">
+                <span style="font-size:0.9em; font-weight:bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(loc.name)}</span>
+                <small style="font-size:0.75em; opacity:0.6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(loc.description)}</small>
             </div>
-            <button class="menu_button lz-import-single-btn" style="padding:2px 8px; font-size:0.75em;" data-i18n="vistalyze.import.btn_add">Add</button>
+            <button class="menu_button lz-import-single-btn" style="padding:2px 8px; font-size:0.75em; white-space: nowrap;" data-i18n="vistalyze.import.btn_add">Add</button>
         </div>`;
     }).join('');
 

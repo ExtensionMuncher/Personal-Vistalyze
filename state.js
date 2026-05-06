@@ -23,7 +23,8 @@
  * bulkInitState(data)            — Hydrates state from reconstruction pass.
  * upsertLocation(def)            — Adds or updates a definition in the library.
  * removeLocation(key)            — Deletes a definition from the library.
- * setFileIndex(files)            — Overwrites the known background file list.
+ * setFileIndex(files)            — Overwrites the session-scoped background file list.
+ * setAllFileIndex(files)         — Overwrites the full cross-session background file list.
  * addToFileIndex(file)           — Appends a single file to the known list.
  * setWorkshopKey(key)            — Sets the active location being edited.
  * syncDrafts()                   — Clones the library into the workshop draft.
@@ -50,7 +51,8 @@ export const state = {
     newFromMap: {},        // { fromKey: count }
 
     // Filesystem Cache
-    fileIndex: new Set(),  // Set of filenames on server (all sessions)
+    fileIndex: new Set(),     // Session-scoped: vistalyze_[sessionId]_* files only
+    allFileIndex: new Set(),  // Full list: all vistalyze_* files across every session
 
     // Workshop (Temporary UI State)
     _activeWorkshopKey: null,
@@ -75,6 +77,7 @@ export function resetState() {
     state.currentLocation = null;
     state.currentImage = null;
     state.fileIndex = new Set();
+    state.allFileIndex = new Set();
     state.transitionsMap = {};
     state.newFromMap = {};
 
@@ -128,11 +131,19 @@ export function removeLocation(key) {
 }
 
 /**
- * Overwrites the file index with a fresh list from the server.
- * @param {string[]} files 
+ * Overwrites the session-scoped file index with a fresh filtered list.
+ * @param {string[]} files
  */
 export function setFileIndex(files) {
     state.fileIndex = new Set(files);
+}
+
+/**
+ * Overwrites the full cross-session file index with the complete server list.
+ * @param {string[]} files
+ */
+export function setAllFileIndex(files) {
+    state.allFileIndex = new Set(files);
 }
 
 /**

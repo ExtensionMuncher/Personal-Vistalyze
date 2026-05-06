@@ -1,15 +1,17 @@
 /**
  * @file data/default-user/extensions/vistalyze/logic/bootstrapper.js
- * @stamp {"utc":"2026-05-03T15:50:00.000Z"}
- * @version 1.2.0
+ * @stamp {"utc":"2026-05-06T23:45:00.000Z"}
+ * @version 1.3.0
  * @architectural-role Orchestrator / Boot Sequence
  * @description
  * Manages the initialization of the Vistalyze environment for a specific chat.
  * 
  * @updates
- * - Integrated customBg awareness: The regeneration queue now skips any 
- *   location that has a manual background selection, ensuring the AI never 
- *   overwrites user choices.
+ * - Cleaned up unused imports (pre-existing debt).
+ * - Integrated allFileIndex: Now populates the global cross-session asset 
+ *   registry during reconciliation.
+ * - sourceSessionId Awareness: Regeneration queue now correctly identifies 
+ *   borrowed assets and skips unnecessary generation.
  *
  * @api-declaration
  * runBoot() -> Promise<void>
@@ -21,10 +23,10 @@
  *     external_io: [session, reconstruction, imageCache, background, orphanDetector]
  */
 
-import { saveSettingsDebounced, chat_metadata } from '../../../../../script.js';
+import { chat_metadata } from '../../../../../script.js';
 import { getContext } from '../../../../extensions.js';
 import { log, warn, error } from '../utils/logger.js';
-import { state, bulkInitState, setFileIndex, addToFileIndex, updateState } from '../state.js';
+import { state, bulkInitState, setFileIndex, setAllFileIndex, addToFileIndex } from '../state.js';
 import { initSession } from '../session.js';
 import { reconstruct } from '../reconstruction.js';
 import { fetchFileIndex, generate } from '../imageCache.js';
@@ -45,15 +47,7 @@ export async function runBoot() {
         return;
     }
 
-    // DEBUG: Log metadata state at boot entry — tells us if custom_background is already
-    // set when we arrive, meaning ST's onChatChanged already applied it (and may have 404'd).
-    log('Boot', 'runBoot() entry — chat_metadata:', {
-        custom_background: chat_metadata?.custom_background ?? '(not set)',
-        vistalyze_managed:  chat_metadata?.vistalyze_managed  ?? '(not set)',
-    });
-
     // 1. Session & DNA Reconstruction
-    // Derives the library and the "last known scene" from the chat JSONL.
     initSession();
     
     const reconstructed = reconstruct(context.chat);
@@ -67,8 +61,9 @@ export async function runBoot() {
     // Fetch the list of actual background files present on the server.
     const { fileIndex, allImages } = await fetchFileIndex(state.sessionId);
 
-    // Protected Update: Update the server asset cache
+    // Protected Update: Update both the session-scoped and full file indexes
     setFileIndex(fileIndex);
+    setAllFileIndex(allImages);
 
     log('Boot', `File Index: ${state.fileIndex.size} managed files detected.`);
 
@@ -78,10 +73,18 @@ export async function runBoot() {
     // Check every location in the library. If its image is missing, queue it.
     for (const key of Object.keys(state.locations)) {
         const def = state.locations[key];
-        
-        // Skip regeneration if a custom background is explicitly set. 
-        // Vistalyze cannot "re-generate" a manual user selection.
+
         if (def.customBg) continue;
+
+        // Borrowed locations: the asset lives under the source session's namespace.
+        // Skip boot-time auto-regen — commit.js localizes the file on first apply.
+        if (def.sourceSessionId) {
+            const sourceFilename = `vistalyze_${def.sourceSessionId}_${key}.png`;
+            if (!state.allFileIndex.has(sourceFilename)) {
+                warn('Boot', `Borrowed asset missing: ${sourceFilename}. Will localize on next apply.`);
+            }
+            continue;
+        }
 
         const filename = `vistalyze_${state.sessionId}_${key}.png`;
         if (!state.fileIndex.has(filename)) {
@@ -90,20 +93,15 @@ export async function runBoot() {
         }
     }
 
-    // Identify if the CURRENT scene's image is missing.
-    // customBg filenames are native ST files — they are never in the Vistalyze-scoped
-    // fileIndex, so skip the check for them entirely.
     const currentDef = state.currentLocation ? state.locations[state.currentLocation] : null;
     const isCurrentCustom = !!currentDef?.customBg;
     const isCurrentImageMissing = !isCurrentCustom && state.currentImage && !state.fileIndex.has(state.currentImage);
 
     // 4. UI Restoration
     if (state.currentImage && !isCurrentImageMissing) {
-        // File exists on server: display it immediately
         log('Boot', 'Restoring valid background:', state.currentImage);
         setBg(state.currentImage);
     } else {
-        // File is missing or no scene active: clear the background to prevent 404 logs
         if (isCurrentImageMissing) {
             warn('Boot', `Active background ${state.currentImage} is missing. Clearing UI to prevent 404.`);
         }
@@ -119,10 +117,7 @@ export async function runBoot() {
 
             generate(key, def, state.sessionId)
                 .then(async filename => {
-                    // Protected Update: Add the new file to the index
                     addToFileIndex(filename);
-
-                    // If the regenerated file is the one we should be looking at, apply it now
                     if (filename === state.currentImage) {
                         log('Boot', `Active background regenerated: ${filename}. Applying to UI.`);
                         setBg(filename);
@@ -136,13 +131,11 @@ export async function runBoot() {
     const meta = getMetaSettings();
     const suspects = fastDiff(allImages, meta?.knownSessions ?? []);
     if (suspects.length > 0) {
-        // Protected Update: Update global audit metadata
         const newAuditCache = {
             ...(meta.auditCache ?? {}),
             suspects: suspects
         };
         updateMetaSetting('auditCache', newAuditCache);
-        
         showOrphanBadge(suspects.length);
     }
 }
