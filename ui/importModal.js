@@ -24,7 +24,7 @@
  *     external_io: [JQuery DOM (write), importController.js, templates.js, listeners.js]
  */
 
-import { translate } from '../../../i18n.js';
+import { translate } from '../../../../i18n.js';
 import { getAvailableCharacters } from '../logic/importController.js';
 import { getCharacterGridHTML, getChatFolderHTML } from './import/templates.js';
 import { bindImportEvents } from './import/listeners.js';
