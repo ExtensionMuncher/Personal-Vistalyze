@@ -74,7 +74,7 @@
     "vistalyze.import.back": "Back",
     "vistalyze.import.scanning": "Scanning Archives...",
     "vistalyze.import.scan_failed": "Scan failed. See console.",
-    "vistalyze.import.worlds_of": "Worlds of",
+    "vistalyze.import.inventory": "chat log inventory",
     "vistalyze.import.no_locations": "No Vistalyze locations found for this character.",
     "vistalyze.import.import_all_title": "Import all locations from this chat",
     "vistalyze.import.btn_all": "Import All",

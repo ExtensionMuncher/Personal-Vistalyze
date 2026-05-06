@@ -91,7 +91,7 @@ export function renderCharacters() {
  * @param {object[]} chatSummaries List of { filename, count, snippet }
  */
 export function renderChats(charName, avatarUrl, chatSummaries) {
-    $('#lz-import-title').text(`${translate('Worlds of')} ${charName}`);
+    $('#lz-import-title').text(`${charName} ${translate('vistalyze.import.inventory')}`);
     $('#lz-import-back').removeClass('lz-hidden');
     
     // Track context for listeners
