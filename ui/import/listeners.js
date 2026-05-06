@@ -51,21 +51,22 @@ export function bindImportEvents(handlers) {
         const avatar = $(this).data('avatar');
         const name = $(this).data('name');
         
-        // Show spinner
-        $('#lz-import-body').html(`<div style="text-align:center; padding:50px; opacity:0.6;"><i class="fa-solid fa-spinner fa-spin"></i> ${translate('Scanning Archives...')}</div>`);
+        $('#lz-import-body').html(`<div style="text-align:center; padding:50px; opacity:0.6;"><i class="fa-solid fa-spinner fa-spin"></i> Scanning Archives...</div>`);
         
         try {
-            const chatFiles = await fetchCharacterChats(avatar);
-            const chatSummaries = [];
+            const chatFilesRaw = await fetchCharacterChats(avatar);
+            
+            // FIX: Convert everything to a string immediately
+            const chatFiles = chatFilesRaw.map(f => typeof f === 'string' ? f : f.file_name);
 
-            // Parallel fast-pass scan for each chat
+            const chatSummaries = [];
             const scans = chatFiles.map(filename => scanChat(avatar, filename, name));
             const results = await Promise.all(scans);
 
             results.forEach((res, idx) => {
                 if (res.locations?.length > 0) {
                     chatSummaries.push({
-                        filename: chatFiles[idx],
+                        filename: chatFiles[idx], // This is now guaranteed to be a string
                         count: res.locations.length,
                         snippet: res.snippet || '' 
                     });
@@ -74,8 +75,8 @@ export function bindImportEvents(handlers) {
             
             renderChats(name, avatar, chatSummaries);
         } catch (err) {
-            console.error('[Vistalyze] Scan failed details:', err); // ADD THIS LINE
-            $('#lz-import-body').html(`<p style="text-align:center; padding:20px; color:var(--SmartThemeErrorColor);">${translate('Scan failed. See console.')}</p>`);
+            console.error('[Vistalyze] Scan failed details:', err);
+            $('#lz-import-body').html(`<p style="text-align:center; padding:20px; color:var(--SmartThemeErrorColor);">Scan failed. See console.</p>`);
         }
     });
 

@@ -68,11 +68,15 @@ export async function fetchCharacterChats(avatarUrl) {
 
 /**
  * Scans a foreign chat file for Vistalyze location definitions.
- * @returns {Promise<{locations: object[], snippet: string}>}
  */
 export async function scanChat(avatarUrl, chatFilename, characterName) {
-    if (state._importCache.locationLibrary[chatFilename]) {
-        return state._importCache.locationLibrary[chatFilename];
+    // FIX: Ensure we are working with a string. 
+    // SillyTavern sometimes returns an object { file_name: "..." }
+    const fileNameString = (typeof chatFilename === 'string') ? chatFilename : chatFilename.file_name;
+
+    // Use the string for cache lookups
+    if (state._importCache.locationLibrary[fileNameString]) {
+        return state._importCache.locationLibrary[fileNameString];
     }
 
     const res = await fetch('/api/chats/get', {
@@ -80,13 +84,14 @@ export async function scanChat(avatarUrl, chatFilename, characterName) {
         headers: getRequestHeaders(),
         body: JSON.stringify({
             ch_name: characterName,
-            file_name: chatFilename.replace('.jsonl', ''),
+            // FIX: Use fileNameString here
+            file_name: fileNameString.replace('.jsonl', ''),
             avatar_url: avatarUrl,
         }),
     });
 
     const messages = await res.json();
-    if (!Array.isArray(messages)) return [];
+    if (!Array.isArray(messages)) return { locations: [], snippet: '' };
 
     const discovered = [];
     const seenKeys = new Set();
@@ -127,7 +132,7 @@ export async function scanChat(avatarUrl, chatFilename, characterName) {
     const snippet = lastMsg ? lastMsg.mes.trim().replace(/\s+/g, ' ').slice(0, 120) : '';
 
     const result = { locations: discovered, snippet };
-    setImportCache('locationLibrary', chatFilename, result);
+    setImportCache('locationLibrary', fileNameString, result);
     return result;
 }
 
