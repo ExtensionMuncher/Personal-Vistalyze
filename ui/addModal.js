@@ -70,7 +70,7 @@ export async function openAddModal(def) {
 
     // Create the left-aligned action
     const $useExistingBtn = $(`<div id="lz-add-use-existing" class="menu_button" style="white-space:nowrap;">
-        ${translate('Select existing')}
+        <i class="fa-solid fa-images"></i> ${translate('vistalyze.add_modal.btn_use_existing')}
     </div>`);
 
     // Create the right-aligned group

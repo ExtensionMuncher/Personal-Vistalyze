@@ -47,8 +47,8 @@
     "vistalyze.workshop.tab_architect": "Architect",
     "vistalyze.workshop.tab_explorer": "Explorer",
     "vistalyze.workshop.library_hint": "Browse discovered locations and select one to apply to the current scene.",
-    "vistalyze.workshop.btn_global_library": "Global Library",
-    "vistalyze.workshop.btn_hijack": "Select existing",
+    "vistalyze.workshop.btn_global_library": "Global Vistalyze Library",
+    "vistalyze.workshop.btn_hijack": "Pick from Gallery",
     "vistalyze.workshop.btn_clear_bg": "Clear manual selection",
     "vistalyze.workshop.btn_cancel": "Cancel",
     "vistalyze.workshop.btn_finalize": "Apply and Finalize",
@@ -108,6 +108,7 @@
     "vistalyze.add_modal.label_definition": "Definition (Logical Identity)",
     "vistalyze.add_modal.label_visuals": "Visuals (Image Prompt)",
     "vistalyze.add_modal.btn_preview": "Generate Preview",
+    "vistalyze.add_modal.btn_use_existing": "Pick from Gallery",
     "vistalyze.add_modal.btn_yes": "Yes",
     "vistalyze.add_modal.btn_cancel": "Cancel",
 
