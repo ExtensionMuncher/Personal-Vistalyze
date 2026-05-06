@@ -1,15 +1,16 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/addModal.js
- * @stamp {"utc":"2026-05-03T16:30:00.000Z"}
+ * @stamp {"utc":"2026-05-06T12:00:00.000Z"}
  * @architectural-role New Location Review UI
  * @description
- * Modal for reviewing, editing, and approving a new location definition.
- * Includes data-i18n attributes for native SillyTavern translation support.
+ * Modal for reviewing and approving a new location definition.
+ * Updated to implement the standardized split-footer layout.
  *
  * @updates
- * - "Use Existing Background" button moved to dialogue_popup_controls (next to Yes/Cancel).
- * - Selecting an image now bypasses the modal entirely — the popup is dismissed
- *   immediately and the result is returned directly without returning to the form.
+ * - Standardized "Select existing" button on the far left of the popup footer.
+ * - Grouped "Cancel" and "Yes" buttons on the far right using a flex container.
+ * - Applied lz-primary-action (Red) class to the "Yes" confirmation button.
+ * - Simplified button text and removed icons for a cleaner "flat" appearance.
  *
  * @api-declaration
  * openAddModal(def) → Promise<{ name, key, description, imagePrompt, customBg } | null>
@@ -32,7 +33,7 @@ import { error } from '../utils/logger.js'
  * @param {object} def Initial definition from the AI detector.
  */
 export async function openAddModal(def) {
-    // Clean up any stale button from a previous call that was interrupted.
+    // 1. Cleanup stale state
     $('#lz-add-use-existing').remove();
 
     let earlyResult = null;
@@ -62,18 +63,46 @@ export async function openAddModal(def) {
         'confirm',
     )
 
-    // Inject "Use Existing Background" into the popup controls, before Yes/Cancel.
-    const $useExistingBtn = $(`<div id="lz-add-use-existing" class="menu_button" style="white-space:nowrap;">
-        <i class="fa-solid fa-folder-open"></i> ${translate('Use Existing BG')}
-    </div>`);
-    $('#dialogue_popup_controls').prepend($useExistingBtn);
+    // 2. Structural Layout Adjustment (Split Footer)
+    const $controls = $('#dialogue_popup_controls');
+    const $okBtn     = $('#dialogue_popup_ok');
+    const $cancelBtn = $('#dialogue_popup_cancel');
 
-    // Bind slugification handler: name -> key
+    // Create the left-aligned action
+    const $useExistingBtn = $(`<div id="lz-add-use-existing" class="menu_button" style="white-space:nowrap;">
+        ${translate('Select existing')}
+    </div>`);
+
+    // Create the right-aligned group
+    const $rightGroup = $('<div class="lz-footer-right"></div>');
+
+    // Apply layout rules
+    $controls.css({
+        'display': 'flex',
+        'justify-content': 'space-between',
+        'align-items': 'center',
+        'width': '100%',
+        'padding': '10px 20px 20px'
+    });
+
+    // Color code the primary action
+    $okBtn.addClass('lz-primary-action').text(translate('Yes'));
+    $cancelBtn.text(translate('Cancel'));
+
+    // Detach native buttons before emptying so jQuery preserves their event handlers.
+    // .empty() calls cleanData() on removed children — detaching first prevents that.
+    $okBtn.detach();
+    $cancelBtn.detach();
+
+    // Reconstruct the footer DOM
+    $controls.empty().append($useExistingBtn).append($rightGroup);
+    $rightGroup.append($cancelBtn).append($okBtn);
+
+    // 3. Event Binding
     $('#lz-add-name').on('input', function () {
         $('#lz-add-key').val(slugify(this.value))
     })
 
-    // "Use Existing BG": open picker, capture result, dismiss popup immediately.
     $useExistingBtn.on('click', async function () {
         const filename = await pickNativeBackground();
         if (!filename) return;
@@ -94,11 +123,9 @@ export async function openAddModal(def) {
             customBg: filename,
         };
 
-        // Dismiss the modal — popupPromise will resolve to false.
-        $('#dialogue_popup_cancel').trigger('click');
+        $cancelBtn.trigger('click');
     });
 
-    // Bind preview handler
     $('#lz-add-preview-btn').on('click', async function () {
         const visuals = $('#lz-add-visuals').val().trim()
         if (!visuals) {
@@ -126,17 +153,9 @@ export async function openAddModal(def) {
     })
 
     const confirmed = await popupPromise;
-
-    // Clean up our injected button regardless of path.
-    $useExistingBtn.remove();
-
-    // Early-exit path: user picked an existing background — bypass everything.
     if (earlyResult) return earlyResult;
-
-    // Normal cancel.
     if (!confirmed) return null;
 
-    // Normal Yes path: validate and return the AI-gen def.
     const name = $('#lz-add-name').val().trim();
     const key  = $('#lz-add-key').val().trim();
 

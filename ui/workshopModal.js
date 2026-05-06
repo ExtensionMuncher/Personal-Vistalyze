@@ -1,16 +1,16 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshopModal.js
- * @stamp {"utc":"2026-04-04T13:40:00.000Z"}
+ * @stamp {"utc":"2026-05-06T11:00:00.000Z"}
  * @architectural-role UI Orchestrator
  * @description
  * High-level coordinator for the Location Workshop. 
- * Includes translation-ready wrappers for dynamic UI labels.
+ * Updated to synchronize the global footer button text with the active 
+ * workshop location's state.
  *
  * @updates
- * - Standardized Cache Busting: Updated renderArchitect to use the 'v=' timestamp parameter.
- * - This ensures that if a background is overwritten (same filename, new content), the preview updates instantly.
- * - Synchronized tab active classes with style.css (.lz-active).
- * - Integrated translation-ready translate wrappers for dynamic labels.
+ * - Updated renderArchitect to toggle #lz-workshop-alt-bg text between 
+ *   "Select existing" and "Clear manual selection".
+ * - Added a disabled state for the footer action if no location is selected.
  *
  * @api-declaration
  * renderLibrary()   — updates the Library tab content.
@@ -38,20 +38,30 @@ import { bindWorkshopEvents } from './workshop/listeners.js';
 
 /**
  * Renders the Library list based on _draftLocations.
- * Injects HTML into the .lz-library-list container.
  */
 export function renderLibrary() {
     const drafts = Object.entries(state._draftLocations);
     const html = getLibraryListHTML(drafts, state.currentLocation, state.fileIndex, state.sessionId);
     $('.lz-library-list').html(html);
+
+    // Sync footer button text if we have an active key
+    const key = state._activeWorkshopKey;
+    const draft = state._draftLocations[key];
+    const $altBtn = $('#lz-workshop-alt-bg');
+
+    if (!draft) {
+        $altBtn.text(translate('Select existing')).prop('disabled', true);
+    } else {
+        const text = draft.customBg ? translate('Clear manual selection') : translate('Select existing');
+        $altBtn.text(text).prop('disabled', false);
+    }
 }
 
 /**
  * Renders the Architect tab for the current active workshop key.
- * Handles the display of current background vs. proposed preview.
  */
 export async function renderArchitect() {
-    // Default to the current active scene location if no workshop key is explicitly set.
+    // Default to current location if none selected
     if (!state._activeWorkshopKey && state.currentLocation && state._draftLocations[state.currentLocation]) {
         setWorkshopKey(state.currentLocation);
     }
@@ -59,16 +69,19 @@ export async function renderArchitect() {
     const key = state._activeWorkshopKey;
     const draft = state._draftLocations[key];
     const $container = $('#lz-tab-architect');
+    const $altBtn = $('#lz-workshop-alt-bg');
 
     if (!draft) {
         $container.html(getArchitectEmptyHTML());
+        $altBtn.text(translate('Select existing')).prop('disabled', true);
         return;
     }
 
+    // Toggle footer button text based on customBg state
+    const altBtnText = draft.customBg ? translate('Clear manual selection') : translate('Select existing');
+    $altBtn.text(altBtnText).prop('disabled', false);
+
     const filename = `vistalyze_${state.sessionId}_${key}.png`;
-    
-    // Cache-busting: Use a timestamp to force the browser to ignore its cache.
-    // This is vital because we use static filenames (overwriting the file on server).
     const currentImgUrl = state.fileIndex.has(filename) 
         ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` 
         : '';
@@ -89,27 +102,20 @@ export async function renderArchitect() {
 
 /**
  * Switches the active tab and triggers the appropriate render logic.
- * Ensures the flexbox chain is preserved by correctly toggling .lz-hidden.
- * @param {string} tabName The ID suffix of the tab (library, architect, explorer)
  */
 export function switchTab(tabName) {
-    // 1. Update Button States
     $('.lz-tab-btn').removeClass('lz-active');
     $(`.lz-tab-btn[data-tab="${tabName}"]`).addClass('lz-active');
     
-    // 2. Toggle Panel Visibility
-    // Removing lz-hidden allows .lz-tab-panel's display:flex to take over
     $('.lz-tab-panel').addClass('lz-hidden');
     $(`#lz-tab-${tabName}`).removeClass('lz-hidden');
 
-    // 3. Trigger Renderers
     if (tabName === 'library') renderLibrary();
     if (tabName === 'architect') renderArchitect();
 }
 
 /**
  * Entry point to inject the workshop and bind its listeners.
- * Idempotent check prevents multiple injections.
  */
 export function injectWorkshop() {
     if ($('#lz-workshop-overlay').length) return;
@@ -125,8 +131,6 @@ export function injectWorkshop() {
 
 /**
  * Primary entry point to display the Workshop modal.
- * Ensures the shell is injected before showing.
- * @param {string} tab Initial tab to display.
  */
 export function openWorkshop(tab = 'library') {
     injectWorkshop();

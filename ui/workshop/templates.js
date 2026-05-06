@@ -1,14 +1,18 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshop/templates.js
- * @stamp {"utc":"2026-05-03T15:45:00.000Z"}
+ * @stamp {"utc":"2026-05-04T10:00:00.000Z"}
  * @architectural-role Pure UI Templates
  * @description
  * Pure functions for generating the Location Workshop HTML. 
- * Includes data-i18n attributes for native SillyTavern translation support.
+ * Updated to implement the standardized split-footer layout with the 
+ * "Select Existing" action on the far left and grouped "Cancel/Apply" 
+ * actions on the far right.
  *
  * @updates
- * - Added "Select Existing" button to the Architect tab to trigger the ST background hijack.
- * - Updated getArchitectGridHTML to include the hijack trigger.
+ * - Relocated "Select Existing" button from Architect tab to global footer.
+ * - Grouped Cancel and Apply buttons in the new lz-footer-right container.
+ * - Applied lz-primary-action (Red) class to the finalization button.
+ * - Removed inline selection/clear buttons from the Architect form fields.
  *
  * @api-declaration
  * getBaseWorkshopHTML(sessionId) -> string
@@ -28,7 +32,7 @@ import { escapeHtml } from '../../utils/history.js';
 
 /**
  * Main skeleton of the Workshop Modal.
- * Uses classes defined in style.css for structural flexbox support.
+ * Implements the split-footer logic.
  */
 export function getBaseWorkshopHTML(sessionId) {
     return `
@@ -70,8 +74,14 @@ export function getBaseWorkshopHTML(sessionId) {
             </div>
 
             <div class="lz-workshop-controls">
-                <button id="lz-workshop-close" class="menu_button" data-i18n="vistalyze.workshop.btn_cancel">Cancel</button>
-                <button id="lz-arch-finalize" class="menu_button menu_button_success" data-i18n="vistalyze.workshop.btn_finalize">Apply and Finalize</button>
+                <!-- Left-aligned action -->
+                <button id="lz-workshop-alt-bg" class="menu_button" data-i18n="vistalyze.workshop.btn_hijack">Select existing</button>
+                
+                <!-- Right-aligned action group -->
+                <div class="lz-footer-right">
+                    <button id="lz-workshop-close" class="menu_button" data-i18n="vistalyze.workshop.btn_cancel">Cancel</button>
+                    <button id="lz-arch-finalize" class="menu_button lz-primary-action" data-i18n="vistalyze.workshop.btn_finalize">Apply and Finalize</button>
+                </div>
             </div>
         </div>
     </div>`;
@@ -79,10 +89,6 @@ export function getBaseWorkshopHTML(sessionId) {
 
 /**
  * Generates the list of locations for the Library tab.
- * @param {Array} drafts Entries from _draftLocations.
- * @param {string|null} currentKey The currently active location key.
- * @param {Set<string>} fileIndex Known background filenames on server.
- * @param {string|null} sessionId Current session ID for filename construction.
  */
 export function getLibraryListHTML(drafts, currentKey, fileIndex = new Set(), sessionId = null) {
     if (drafts.length === 0) {
@@ -97,8 +103,6 @@ export function getLibraryListHTML(drafts, currentKey, fileIndex = new Set(), se
         const isCurrent = currentKey === key;
         const isCustom = !!loc.customBg;
         const filename = loc.customBg || (sessionId ? `vistalyze_${sessionId}_${key}.png` : null);
-        // customBg files are native ST backgrounds and never appear in the Vistalyze-scoped
-        // fileIndex, so bypass that check and trust the filename directly.
         const hasImage = filename && (isCustom || fileIndex.has(filename));
         const thumbUrl = hasImage ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` : null;
 
@@ -118,19 +122,16 @@ export function getLibraryListHTML(drafts, currentKey, fileIndex = new Set(), se
                 <small>${escapeHtml(loc.description)}</small>
             </div>
             <div class="lz-lib-actions">
-                <i class="fa-solid fa-folder-open lz-lib-pick-bg" style="font-size:1.2em;" data-i18n="[title]vistalyze.workshop.pick_bg_title" title="Select existing background"></i>
-                <i class="fa-solid fa-pen-to-square lz-lib-edit" style="font-size:1.2em;" data-i18n="[title]vistalyze.workshop.edit_title" title="Edit in Architect"></i>
-                <i class="fa-solid fa-trash lz-lib-delete" style="font-size:1.2em;" data-i18n="[title]vistalyze.workshop.delete_title" title="Delete Location"></i>
+                <i class="fa-solid fa-folder-open lz-lib-pick-bg" style="font-size:1.2em;" title="Select existing background"></i>
+                <i class="fa-solid fa-pen-to-square lz-lib-edit" style="font-size:1.2em;" title="Edit in Architect"></i>
+                <i class="fa-solid fa-trash lz-lib-delete" style="font-size:1.2em;" title="Delete Location"></i>
             </div>
         </div>`;
     }).join('');
 }
 
 /**
- * Calculates the number of textarea rows needed to display text without scrolling.
- * @param {string} text The textarea content.
- * @param {number} charsPerRow Estimated characters per row.
- * @param {number} minRows Minimum rows to show.
+ * Calculates rows for textarea sizing.
  */
 function calcRows(text, charsPerRow = 65, minRows = 2) {
     if (!text) return minRows;
@@ -140,7 +141,7 @@ function calcRows(text, charsPerRow = 65, minRows = 2) {
 }
 
 /**
- * Architect View: Vertical layout — text fields stacked, then images side-by-side.
+ * Architect View: Vertical layout stacking form fields.
  */
 export function getArchitectGridHTML(draft, currentImgUrl, proposedImgUrl, proposedLabel = 'Proposed') {
     const defRows = calcRows(draft.description, 65, 2);
@@ -152,20 +153,10 @@ export function getArchitectGridHTML(draft, currentImgUrl, proposedImgUrl, propo
         <label data-i18n="vistalyze.workshop.label_name">Location Name</label>
         <input type="text" id="lz-arch-name" class="text_pole" style="width:100%;" value="${escapeHtml(draft.name)}" />
 
-        <label><span data-i18n="vistalyze.workshop.label_definition">Definition (Logic)</span> <i class="fa-solid fa-wand-sparkles lz-regen-spark" data-field="description" data-i18n="[title]vistalyze.workshop.regen_logic_title" title="Regenerate logic from context"></i></label>
+        <label><span data-i18n="vistalyze.workshop.label_definition">Definition (Logic)</span> <i class="fa-solid fa-wand-sparkles lz-regen-spark" data-field="description" title="Regenerate logic from context"></i></label>
         <textarea id="lz-arch-definition" class="text_pole" rows="${defRows}" style="width:100%; resize:vertical;">${escapeHtml(draft.description)}</textarea>
 
-        <div style="display:flex; align-items:center; justify-content:space-between; margin: 12px 0 4px;">
-            <label data-i18n="vistalyze.workshop.label_visuals">Visuals (Image Prompt)</label>
-            <div style="display:flex; gap:4px;">
-                ${isManual ? `<button class="menu_button" id="lz-arch-clear-bg-btn" style="font-size:0.75em; padding: 2px 8px;" title="${escapeHtml(draft.customBg)}">
-                    <i class="fa-solid fa-xmark"></i> <span data-i18n="vistalyze.workshop.btn_clear_bg">Clear: ${escapeHtml(draft.customBg)}</span>
-                </button>` : ''}
-                <button class="menu_button" id="lz-arch-hijack-btn" style="font-size:0.75em; padding: 2px 8px;">
-                    <i class="fa-solid fa-folder-open"></i> <span data-i18n="vistalyze.workshop.btn_hijack">Select Existing</span>
-                </button>
-            </div>
-        </div>
+        <label data-i18n="vistalyze.workshop.label_visuals">Visuals (Image Prompt)</label>
         <textarea id="lz-arch-visuals" class="text_pole" rows="${visRows}"
                   ${isManual ? 'disabled' : ''}
                   style="width:100%; resize:vertical; font-family:monospace; font-size:0.9em; opacity: ${isManual ? '0.5' : '1'};">
@@ -191,7 +182,7 @@ export function getArchitectGridHTML(draft, currentImgUrl, proposedImgUrl, propo
 }
 
 /**
- * Placeholder for when the Architect tab is empty.
+ * Placeholder for empty Architect tab.
  */
 export function getArchitectEmptyHTML() {
     return `
