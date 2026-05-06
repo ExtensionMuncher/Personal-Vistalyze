@@ -1,15 +1,13 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshop/listeners.js
- * @stamp {"utc":"2026-05-06T10:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T22:00:00.000Z"}
  * @architectural-role UI Event Listeners
  * @description
  * Centralizes all DOM event bindings for the Location Workshop modal.
- * Updated to handle the relocated global footer actions.
  *
  * @updates
+ * - Added listener for #lz-workshop-global-lib to transition to the Global Library.
  * - Re-mapped "Select Existing" logic to the global footer button #lz-workshop-alt-bg.
- * - Integrated "Clear" logic into the same footer button to toggle based on state.
- * - Removed obsolete listeners for #lz-arch-hijack-btn and #lz-arch-clear-bg-btn.
  *
  * @api-declaration
  * bindWorkshopEvents(handlers) -> void
@@ -25,6 +23,7 @@ import { t, translate } from '../../../../../i18n.js';
 import { state, setWorkshopKey, setProposedBlob, updateDraftField } from '../../state.js';
 import { error } from '../../utils/logger.js';
 import { pickNativeBackground } from '../bgHijacker.js';
+import { openGlobalLibrary } from '../importModal.js';
 import {
     regenField,
     discoverySearch,
@@ -53,6 +52,15 @@ export function bindWorkshopEvents(handlers) {
     });
 
     // ─── Global Footer Actions ───────────────────────────────────────────
+
+    /**
+     * Global Library Access.
+     * Hides the current workshop and enters the cross-chat discovery mode.
+     */
+    $overlay.on('click', '#lz-workshop-global-lib', () => {
+        $overlay.addClass('lz-hidden');
+        openGlobalLibrary();
+    });
 
     /**
      * Standardized Background Action Button.

@@ -1,6 +1,6 @@
 /**
  * @file data/default-user/extensions/vistalyze/state.js
- * @stamp {"utc":"2026-05-03T14:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T15:00:00.000Z"}
  * @architectural-role Stateful Owner (Runtime State)
  * @description
  * Single source of truth for all Vistalyze in-memory runtime state. 
@@ -12,16 +12,15 @@
  * 4. All objects passed into setters are structured-cloned to prevent reference leaks.
  *
  * @updates
- * - Added customBg to locations and _draftLocations schema to support manual 
- *   background selection.
- * - Updated updateDraftField to invalidate AI-generated blobs when customBg 
- *   is modified.
+ * - Added sourceSessionId to locations and _draftLocations schema.
+ * - Added _importCache to hold character-scoped scan results for the Global Library.
+ * - Updated updateDraftField to invalidate AI blobs when sourceSessionId changes.
  *
  * @api-declaration
  * state                          — Read-only access to runtime data.
  * setSessionId(id)               — Sets the unique 8-char session key.
  * updateState(location, image)   — Updates the active scene and background.
- * bulkInitState(data)            — Hydrates state from reconstruction pass (includes transitionsMap, newFromMap).
+ * bulkInitState(data)            — Hydrates state from reconstruction pass.
  * upsertLocation(def)            — Adds or updates a definition in the library.
  * removeLocation(key)            — Deletes a definition from the library.
  * setFileIndex(files)            — Overwrites the known background file list.
@@ -32,6 +31,7 @@
  * updateDraftField(k, f, v)      — Updates a specific field in a draft location.
  * removeDraft(key)               — Removes a location from the staged draft.
  * setProposedBlob(type, url)     — Stores temporary preview ObjectURLs.
+ * setImportCache(type, key, val) — Manages temporary character/chat scan data.
  * clearWorkshop()                — Wipes all temporary workshop data.
  * resetState()                   — Restores state to factory defaults.
  */
@@ -41,22 +41,29 @@ export const state = {
     sessionId: null,
 
     // Live Library & Scene
-    locations: {},         // key -> { name, description, imagePrompt, customBg, ... }
+    locations: {},         // key -> { name, description, imagePrompt, customBg, sourceSessionId, ... }
     currentLocation: null, // key
     currentImage: null,    // filename
 
     // Markov Transition Graph (derived from DNA during reconstruction)
     transitionsMap: {},    // { fromKey: { toKey: count } }
-    newFromMap: {},        // { fromKey: count } — creation events per origin
+    newFromMap: {},        // { fromKey: count }
 
     // Filesystem Cache
-    fileIndex: new Set(),  // Set of filenames on server
+    fileIndex: new Set(),  // Set of filenames on server (all sessions)
 
     // Workshop (Temporary UI State)
     _activeWorkshopKey: null,
-    _draftLocations: {},   // key -> { name, description, imagePrompt, customBg }
+    _draftLocations: {},   // key -> { name, description, imagePrompt, customBg, sourceSessionId }
     _proposedImageBlob: null,
     _proposedFullBlob: null,
+
+    // Global Library / Import Cache
+    _importCache: {
+        characterList: [],    // Array of character objects
+        chatList: {},         // avatar_url -> [chat_filenames]
+        locationLibrary: {},  // chat_filename -> [location_defs]
+    }
 }
 
 /**
@@ -94,7 +101,6 @@ export function updateState(location, image) {
 
 /**
  * Performs a bulk update of the core library and scene.
- * Usually called after DNA reconstruction.
  */
 export function bulkInitState({ locations, currentLocation, currentImage, transitionsMap, newFromMap }) {
     state.locations = structuredClone(locations);
@@ -106,7 +112,7 @@ export function bulkInitState({ locations, currentLocation, currentImage, transi
 
 /**
  * Adds or updates a location definition in the live library.
- * @param {object} def { key, name, description, imagePrompt, ... }
+ * @param {object} def 
  */
 export function upsertLocation(def) {
     if (!def.key) return;
@@ -168,16 +174,15 @@ export function stageDiscovery(def) {
 /**
  * Updates a specific field for a location in the draft library.
  * @param {string} key The location key in the draft.
- * @param {string} field 'name', 'description', 'imagePrompt', or 'customBg'.
- * @param {string} value The new text value.
+ * @param {string} field 'name', 'description', 'imagePrompt', 'customBg', or 'sourceSessionId'.
+ * @param {any} value 
  */
 export function updateDraftField(key, field, value) {
     if (state._draftLocations[key]) {
         state._draftLocations[key][field] = value;
         
-        // If visuals change (prompt or manual file selection), any existing 
-        // pre-generated AI blobs are now invalid.
-        if (field === 'imagePrompt' || field === 'customBg') {
+        // If visuals change, any existing pre-generated AI blobs are now invalid.
+        if (field === 'imagePrompt' || field === 'customBg' || field === 'sourceSessionId') {
             state._proposedImageBlob = null;
             state._proposedFullBlob = null;
         }
@@ -203,6 +208,20 @@ export function setProposedBlob(type, url) {
 }
 
 /**
+ * Manages temporary character/chat scan data for the Global Library.
+ * @param {'characterList'|'chatList'|'locationLibrary'} type 
+ * @param {string|null} key Optional key (avatar_url or chat_filename)
+ * @param {any} val 
+ */
+export function setImportCache(type, key, val) {
+    if (type === 'characterList') {
+        state._importCache.characterList = structuredClone(val);
+    } else if (key) {
+        state._importCache[type][key] = structuredClone(val);
+    }
+}
+
+/**
  * Wipes all temporary workshop data and draft edits.
  */
 export function clearWorkshop() {
@@ -210,4 +229,9 @@ export function clearWorkshop() {
     state._draftLocations = {};
     state._proposedImageBlob = null;
     state._proposedFullBlob = null;
+    state._importCache = {
+        characterList: [],
+        chatList: {},
+        locationLibrary: {},
+    };
 }

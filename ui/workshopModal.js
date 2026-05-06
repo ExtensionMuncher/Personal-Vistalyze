@@ -1,16 +1,16 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshopModal.js
- * @stamp {"utc":"2026-05-06T11:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T23:00:00.000Z"}
  * @architectural-role UI Orchestrator
  * @description
  * High-level coordinator for the Location Workshop. 
- * Updated to synchronize the global footer button text with the active 
- * workshop location's state.
+ * Updated to synchronize imported data when returning from the Global Library.
  *
  * @updates
- * - Updated renderArchitect to toggle #lz-workshop-alt-bg text between 
- *   "Select existing" and "Clear manual selection".
- * - Added a disabled state for the footer action if no location is selected.
+ * - Enhanced openWorkshop: Now calls syncDrafts() to ensure the draft state 
+ *   reflects any new locations imported from the Global Library.
+ * - Standardized renderLibrary: Preserves the sourceSessionId logic for 
+ *   imported location thumbnails.
  *
  * @api-declaration
  * renderLibrary()   — updates the Library tab content.
@@ -27,7 +27,7 @@
  */
 
 import { translate } from '../../../../i18n.js';
-import { state, setWorkshopKey } from '../state.js';
+import { state, setWorkshopKey, syncDrafts } from '../state.js';
 import { 
     getBaseWorkshopHTML, 
     getLibraryListHTML, 
@@ -81,8 +81,11 @@ export async function renderArchitect() {
     const altBtnText = draft.customBg ? translate('Clear manual selection') : translate('Select existing');
     $altBtn.text(altBtnText).prop('disabled', false);
 
-    const filename = `vistalyze_${state.sessionId}_${key}.png`;
-    const currentImgUrl = state.fileIndex.has(filename) 
+    // Resolve Image: Custom > Borrowed (Source Session) > Native (Current Session)
+    const sourceId = draft.sourceSessionId || state.sessionId;
+    const filename = draft.customBg || (sourceId ? `vistalyze_${sourceId}_${key}.png` : null);
+
+    const currentImgUrl = (filename && (!!draft.customBg || state.fileIndex.has(filename)))
         ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` 
         : '';
         
@@ -131,8 +134,10 @@ export function injectWorkshop() {
 
 /**
  * Primary entry point to display the Workshop modal.
+ * Synchronizes the draft state to ensure imported locations are visible.
  */
 export function openWorkshop(tab = 'library') {
+    syncDrafts(); // Sync live library (including imports) to the workshop draft
     injectWorkshop();
     $('#lz-workshop-overlay').removeClass('lz-hidden');
     switchTab(tab);

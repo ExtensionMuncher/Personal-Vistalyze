@@ -1,22 +1,18 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshop/templates.js
- * @stamp {"utc":"2026-05-04T10:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T21:00:00.000Z"}
  * @architectural-role Pure UI Templates
  * @description
  * Pure functions for generating the Location Workshop HTML. 
- * Updated to implement the standardized split-footer layout with the 
- * "Select Existing" action on the far left and grouped "Cancel/Apply" 
- * actions on the far right.
  *
  * @updates
- * - Relocated "Select Existing" button from Architect tab to global footer.
- * - Grouped Cancel and Apply buttons in the new lz-footer-right container.
- * - Applied lz-primary-action (Red) class to the finalization button.
- * - Removed inline selection/clear buttons from the Architect form fields.
+ * - Added "Global Library" button to the workshop footer.
+ * - Updated getLibraryListHTML to support sourceSessionId for image resolution, 
+ *   ensuring imported locations display thumbnails correctly.
  *
  * @api-declaration
  * getBaseWorkshopHTML(sessionId) -> string
- * getLibraryListHTML(drafts, currentKey) -> string
+ * getLibraryListHTML(drafts, currentKey, fileIndex, sessionId) -> string
  * getArchitectGridHTML(draft, currentImgUrl, proposedImgUrl) -> string
  * getArchitectEmptyHTML() -> string
  * getExplorerHTML() -> string
@@ -32,7 +28,7 @@ import { escapeHtml } from '../../utils/history.js';
 
 /**
  * Main skeleton of the Workshop Modal.
- * Implements the split-footer logic.
+ * Implements the split-footer logic with the new Global Library entry point.
  */
 export function getBaseWorkshopHTML(sessionId) {
     return `
@@ -74,8 +70,11 @@ export function getBaseWorkshopHTML(sessionId) {
             </div>
 
             <div class="lz-workshop-controls">
-                <!-- Left-aligned action -->
-                <button id="lz-workshop-alt-bg" class="menu_button" data-i18n="vistalyze.workshop.btn_hijack">Select existing</button>
+                <!-- Left-aligned actions -->
+                <div style="display:flex; gap:10px;">
+                    <button id="lz-workshop-global-lib" class="menu_button" data-i18n="vistalyze.workshop.btn_global_library">Global Library</button>
+                    <button id="lz-workshop-alt-bg" class="menu_button" data-i18n="vistalyze.workshop.btn_hijack">Select existing</button>
+                </div>
                 
                 <!-- Right-aligned action group -->
                 <div class="lz-footer-right">
@@ -89,6 +88,7 @@ export function getBaseWorkshopHTML(sessionId) {
 
 /**
  * Generates the list of locations for the Library tab.
+ * Resolves filenames using sourceSessionId for imported locations.
  */
 export function getLibraryListHTML(drafts, currentKey, fileIndex = new Set(), sessionId = null) {
     if (drafts.length === 0) {
@@ -102,7 +102,11 @@ export function getLibraryListHTML(drafts, currentKey, fileIndex = new Set(), se
     return drafts.map(([key, loc]) => {
         const isCurrent = currentKey === key;
         const isCustom = !!loc.customBg;
-        const filename = loc.customBg || (sessionId ? `vistalyze_${sessionId}_${key}.png` : null);
+        
+        // Resolve Filename: Custom > Borrowed (Source Session) > Native (Current Session)
+        const sourceId = loc.sourceSessionId || sessionId;
+        const filename = loc.customBg || (sourceId ? `vistalyze_${sourceId}_${key}.png` : null);
+        
         const hasImage = filename && (isCustom || fileIndex.has(filename));
         const thumbUrl = hasImage ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` : null;
 
