@@ -1,16 +1,17 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshopModal.js
- * @stamp {"utc":"2026-05-06T15:00:00.000Z"}
+ * @stamp {"utc":"2026-05-06T15:20:00.000Z"}
  * @architectural-role UI Orchestrator
  * @description
  * High-level coordinator for the Location Workshop. 
- * Updated to implement tab-specific visibility for footer buttons.
+ * Updated to show manual gallery selections as "Proposed" changes.
  *
  * @updates
- * - Standardized Terminology: Replaced "Select existing" with "Pick from Gallery".
- * - Tab-Specific Logic: Moved visibility management to switchTab. 
- * - Explorer Focus: Ensures both manual buttons are hidden in the Explorer tab.
- * - Library Cleanup: Removed gallery button manipulation from renderLibrary.
+ * - Visual Separation: Current Background (Left) now strictly reflects the 
+ *   persisted state in the live library.
+ * - Proposed Changes: The Right box now displays manual gallery selections 
+ *   (customBg) or AI-generated previews.
+ * - terminology fix: Standardized "Pick from Gallery" labels.
  *
  * @api-declaration
  * renderLibrary()   — updates the Library tab content.
@@ -47,6 +48,7 @@ export function renderLibrary() {
 
 /**
  * Renders the Architect tab for the current active workshop key.
+ * Resolves the "Current" box from live state and "Proposed" box from draft state.
  */
 export async function renderArchitect() {
     // Default to current location if none selected
@@ -56,28 +58,34 @@ export async function renderArchitect() {
 
     const key = state._activeWorkshopKey;
     const draft = state._draftLocations[key];
+    const live = state.locations[key]; // Access the live, unedited definition
+    
     const $container = $('#lz-tab-architect');
     const $altBtn = $('#lz-workshop-alt-bg');
 
     if (!draft) {
         $container.html(getArchitectEmptyHTML());
-        // Fix standard text even in empty state
         $altBtn.text(translate('Pick from Gallery')).prop('disabled', true);
         return;
     }
 
-    // Toggle footer button text based on customBg state (Fixed label consistency)
+    // Toggle footer button text based on draft customBg state
     const altBtnText = draft.customBg ? translate('Clear manual selection') : translate('Pick from Gallery');
     $altBtn.text(altBtnText).prop('disabled', false);
 
-    // Resolve Image: Custom > Borrowed (Source Session) > Native (Current Session)
-    const sourceId = draft.sourceSessionId || state.sessionId;
-    const filename = draft.customBg || (sourceId ? `vistalyze_${sourceId}_${key}.png` : null);
-
-    const currentImgUrl = (filename && (!!draft.customBg || state.allFileIndex.has(filename)))
-        ? `backgrounds/${encodeURIComponent(filename)}?v=${Date.now()}` 
-        : '';
+    // --- Box 1: Current Background (Left) ---
+    // Strictly resolve from the LIVE library state.
+    let currentImgUrl = '';
+    if (live) {
+        const liveSourceId = live.sourceSessionId || state.sessionId;
+        const liveFilename = live.customBg || (liveSourceId ? `vistalyze_${liveSourceId}_${key}.png` : null);
         
+        if (liveFilename && (!!live.customBg || state.allFileIndex.has(liveFilename))) {
+            currentImgUrl = `backgrounds/${encodeURIComponent(liveFilename)}?v=${Date.now()}`;
+        }
+    }
+
+    // --- Box 2: Proposed Background (Right) ---
     let proposedImgUrl = '';
     let proposedLabel = translate('Proposed');
 
@@ -87,6 +95,10 @@ export async function renderArchitect() {
     } else if (state._proposedImageBlob) {
         proposedImgUrl = state._proposedImageBlob;
         proposedLabel = translate('Thumbnail Preview');
+    } else if (draft.customBg && draft.customBg !== live?.customBg) {
+        // If a manual background is selected and it differs from the live one, show it as proposed.
+        proposedImgUrl = `backgrounds/${encodeURIComponent(draft.customBg)}?v=${Date.now()}`;
+        proposedLabel = translate('Selected from Gallery');
     }
 
     $container.html(getArchitectGridHTML(draft, currentImgUrl, proposedImgUrl, proposedLabel));
@@ -102,10 +114,7 @@ export function switchTab(tabName) {
     $('.lz-tab-panel').addClass('lz-hidden');
     $(`#lz-tab-${tabName}`).removeClass('lz-hidden');
 
-    // Visibility Pass: Show/Hide footer actions based on context
-    // Library: Show Global Library, Hide Pick from Gallery
-    // Architect: Hide Global Library, Show Pick from Gallery
-    // Explorer: Hide both
+    // Visibility Pass: Contextual Action revelation
     $('#lz-workshop-global-lib').toggleClass('lz-hidden', tabName !== 'library');
     $('#lz-workshop-alt-bg').toggleClass('lz-hidden', tabName !== 'architect');
 
@@ -130,10 +139,9 @@ export function injectWorkshop() {
 
 /**
  * Primary entry point to display the Workshop modal.
- * Synchronizes the draft state to ensure imported locations are visible.
  */
 export function openWorkshop(tab = 'library') {
-    syncDrafts(); // Sync live library (including imports) to the workshop draft
+    syncDrafts(); 
     injectWorkshop();
     $('#lz-workshop-overlay').removeClass('lz-hidden');
     switchTab(tab);
