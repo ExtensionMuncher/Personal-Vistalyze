@@ -1,16 +1,14 @@
 /**
  * @file data/default-user/extensions/vistalyze/logic/pipeline.js
- * @stamp {"utc":"2026-05-03T17:20:00.000Z"}
+ * @stamp {"utc":"2026-05-08T07:15:00.000Z"}
  * @architectural-role Orchestrator / Narrative Logic
  * @description
  * Implements the "Falling Water" detection pipeline.
  * 
  * @updates
- * - Fixed User-Selected Background Discovery: Added a logic branch in 
- *   handleUnknownLocation to handle customBg. When a user selects an 
- *   existing background during discovery, the system now skips AI 
- *   generation, immediately applies the chosen file, and records the 
- *   transaction in the chat DNA.
+ * - Persistence Fix: Removed clearBg() and state-nulling from cancellation paths.
+ *   If a new location discovery is cancelled or fails, the system now remains 
+ *   at the current location instead of falling back to a blank background.
  *
  * @api-declaration
  * runPipeline(messageId) -> Promise<void>
@@ -123,7 +121,7 @@ async function handleKnownLocation(messageId, key) {
     const filename = `vistalyze_${state.sessionId}_${key}.png`;
     const def = state.locations[key];
 
-    if (state.fileIndex.has(filename)) {
+    if (state.allFileIndex.has(filename)) {
         // Apply background and update scene state via setter
         setBg(filename);
         await lockedWriteSceneRecord(messageId, { location: key, image: filename, bg_declined: false });
@@ -164,9 +162,7 @@ async function handleUnknownLocation(messageId, context) {
     const rawDef = await detectDescriber(contextText, s.describerPrompt, s.describerProfileId);
 
     if (rawDef === null) {
-        clearBg();
-        await lockedWriteSceneRecord(messageId, { location: null, image: null, bg_declined: true });
-        updateState(null, null);
+        // Fallback: Remain in the current location if AI fails to identify the new one
         return;
     }
 
@@ -179,9 +175,6 @@ async function handleUnknownLocation(messageId, context) {
     // Don't prompt if the user is in the character editor (not viewing chat)
     const charEditorOpen = document.getElementById('rm_ch_create_block')?.offsetParent !== null;
     if (charEditorOpen) {
-        clearBg();
-        await lockedWriteSceneRecord(messageId, { location: null, image: null, bg_declined: true });
-        updateState(null, null);
         return;
     }
 
@@ -197,9 +190,7 @@ async function handleUnknownLocation(messageId, context) {
     }
 
     if (!confirmed) {
-        clearBg();
-        await lockedWriteSceneRecord(messageId, { location: null, image: null, bg_declined: true });
-        updateState(null, null);
+        // Fallback: Remain in the current location if user rejects the discovery
         return;
     }
 
@@ -213,9 +204,7 @@ async function handleUnknownLocation(messageId, context) {
     }
 
     if (approved === null) {
-        clearBg();
-        await lockedWriteSceneRecord(messageId, { location: null, image: null, bg_declined: true });
-        updateState(null, null);
+        // Fallback: Remain in the current location if user cancels the review modal
         return;
     }
 
