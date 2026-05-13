@@ -145,7 +145,7 @@ export async function fetchFileIndex(sessionId) {
         body: JSON.stringify({}),
     })
     const data = await res.json()
-    const images = data.images ?? []
+    const images = (data.images ?? []).map(f => (typeof f === 'string' ? f : f.filename))
     const fileIndex = new Set(images.filter(f => f.startsWith(`vistalyze_${sessionId}_`)))
     return { fileIndex, allImages: images }
 }
