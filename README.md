@@ -1,3 +1,5 @@
+Personal fork of Vistalyze to change some structural functions to my preferences.
+
 # 📍 Vistalyze
 
 **Vistalyze** is a SillyTavern extension that brings your roleplay to life by automatically detecting location changes and generating cinematic background images via the [Pollinations API](https://pollinations.ai).
