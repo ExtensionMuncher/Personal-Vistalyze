@@ -1,88 +1,212 @@
-Personal fork of Vistalyze to change some structural functions to my preferences.
-
-# 📍 Vistalyze
-
-**Vistalyze** is a SillyTavern extension that brings your roleplay to life by automatically detecting location changes and generating cinematic background images via the [Pollinations API](https://pollinations.ai).
-
-## 🔑 Setup & Requirements
-
-To use **Vistalyze** effectively, you must configure both your API key and your SillyTavern AI connections.
-
-1. **Obtain a Pollinations Key:** Visit [enter.pollinations.ai](https://pollinations.ai) to generate your API key for image generation.
-2. **Configure Extension:** 
-   - Open the **Extensions** panel in SillyTavern.
-   - Locate **Vistalyze** and paste your key into the API Key field.
-3. **LLM Connections:** 
-   - Select an LLM for each step in the settings (see below for model guidance)
-   - Select a Pollinations model (typically zimage or flux)
-
-> [!TIP]
-> Higher-quality LLMs will provide more accurate location detection and more atmospheric image prompts!
-
-
-## 🚀 Quick Start Guide
-
-1.  **Installation**: Place the `vistalyze` folder into `SillyTavern/data/default-user/extensions/`.
-2.  **Server Config**: Open `SillyTavern/config.yaml` and ensure `allowKeysExposure: true` is set. Restart SillyTavern.
-3.  **API Key**: 
-    *   Go to the **SillyTavern Extensions Panel** (the puzzle piece icon).
-    *   Find the **Vistalyze** section.
-    *   Enter your **Pollinations API Key** and click **Save to Vault**.
-    *   Click **Test Connection** to ensure everything is working.
-4.  **Chatting**: Start roleplaying! When your character moves to a new place (e.g., "They stepped into the dimly lit tavern"), Vistalyze will automatically detect the shift, ask for your approval, and generate a new background.
+Personal fork of Vistalyze to change some structural functions to my preferences. Please support the official [Vistalyze](https://github.com/ZapoVerde/SillyTavern-Vistalyze)
 
 ---
 
-## ⚙️ Configuration & Best Practices
-
-**Vistalyze** uses a 4-step pipeline to manage background generation. To optimize for both speed and cost, the following LLM setup is recommended for each step:
-
-
-| Step | Function | Recommended Model Type | Why? |
-| :--- | :--- | :--- | :--- |
-| **Step 1** | **Location Detection** | **Fast/Cheap** (e.g., Mistral smal 2603) | This runs frequently to check for changes; a small model handles this boolean logic perfectly. |
-| **Step 2** | **Location Classifier** | **Mid-Tier** (e.g., Gemini 3.1 Flash Lite Preview) | Categorizes the setting to ensure consistent prompt engineering. |
-| **Step 3** | **Scene Description** | **Mid-Tier** (e.g., Gemini 3.1 Flash Lite Preview) | This writes the actual visual prompt.|
-| **Step 4** | **Targeted Discovery** | **Mid-Tier** (e.g., Gemini 3.1 Flash Lite Preview)| Provides a keyword guided generation. |
-
-> [!TIP]
-> Users can mix and match providers (OpenRouter, local, etc.) for each step directly in the extension settings menu to balance performance and cost.
+# Vistalyze Fork — Changelog
+**Upstream:** [ZapoVerde/SillyTavern-Vistalyze](https://github.com/ZapoVerde/SillyTavern-Vistalyze)  
+**Fork purpose:** Local image generation via ComfyUI + cross-session image caching fixes
 
 ---
 
-## 🛠 The Location Workshop
-Located in your top toolbar, the **Workshop** is your command center for managing the "spatial DNA" of your story. It is divided into three tabs:
+## Files Removed from Upstream
 
-*   **Library**: View every location your characters have ever visited in this chat. Click the **Arrow** to jump back to a previous location instantly.
-*   **Architect**: Manually edit a location's name, its logical definition (for the AI), or its visual description (for the image generator). 
-    *   *Pro Tip:* Use the "Thumbnail Preview" to see a low-cost version of your changes before finalizing.
-*   **Explorer**: If the AI missed a transition, use **Force Detect**. You can provide keywords (e.g., "A futuristic laboratory") to guide the AI’s imagination.
+These files exist in the upstream repo but were removed in this fork:
 
----
+- **`logic/importController.js`** — handles importing location libraries from other chats
+- **`ui/bgHijacker.js`** — overrides ST's native background controls
+- **`ui/importModal.js`** + **`ui/import/`** — UI for the import workflow
 
-## 🧠 Transparency: How it Works
-Vistalyze is designed to be fast, cheap, and non-intrusive. It uses a logic pipeline to save you money on LLM tokens:
-
-1.  **Step 1: The Gate (Cheap)**: The AI does a lightning-fast check: "Has the location changed?" If the answer is No, the process stops. You aren't charged for complex analysis on every message.
-2.  **Step 2: The Library (Smart)**: If the location *did* change, the AI checks your existing Library first. "Is this a place we've been before?"
-3.  **Step 3: The Architect (Creative)**: Only if the location is brand new does the AI write a full visual description and request an image.
+These features (cross-chat library import, custom background hijacking) are not present in this fork.
 
 ---
 
-## 🛡 Data & Privacy
-Vistalyze believes your data belongs to you.
-*   **No External Databases**: Your locations, descriptions, and history are stored **inside your chat log (`.jsonl`) file**. 
-*   **Fork-Safe**: If you "Move" or "Duplicate" a chat in SillyTavern, your entire location history and all generated images move with it.
-*   **Manual Control**: Vistalyze will **never** overwrite a background you set manually using SillyTavern’s native tools. It respects your choices and only manages the backgrounds it creates.
+## Files Added in Fork
+
+- **`plans/comfyui-cross-session-cache.md`** — planning document for the ComfyUI and caching changes
+- **`bugs/`** — bug tracking folder
 
 ---
 
-## 🎨 Visual Features
-*   **Parallax Effect**: Turn this on in settings to make wide backgrounds respond to your mouse movement or phone tilt, creating a 3D "window" effect.
-*   **Message Badges**: Every AI message has a small location icon in the action bar. Click it to retroactively change the location of that specific moment in time.
-*   **Self-Healing**: If an image fails to generate because of a network error, Vistalyze will notice it's missing the next time you open the chat and automatically try to fix it for you.
+## imageCache.js — Major Changes
 
-## ❓ Troubleshooting
-*   **Images failing to save?** Ensure `allowKeysExposure: true` is set in your `config.yaml`. Without this, the extension cannot securely access your API key to talk to the image generator.
-*   **Orphaned" Images?** Use the **Audit Images** button in settings to find and delete background files belonging to deleted chats, keeping your storage clean.
-*   **LLM failing?** Check that you are using the appropriate size LLMs for the job. The step 1 LLM can be small and cheap. The others require a bit more power, but only run occasionally.
+### New: ComfyUI generation backend
+The original only supported Pollinations. The fork adds two new backends selectable via settings:
+
+**`comfyui`** — Direct browser-to-ComfyUI API calls using the submit-then-poll pattern:
+1. POST workflow JSON to `http://127.0.0.1:<port>/prompt`
+2. Poll `GET /history/<prompt_id>` every 1500ms until complete (120s timeout)
+3. Extract image info from outputs
+4. Fetch rendered image binary from `GET /view`
+5. Upload blob to ST backgrounds store
+
+Uses a Z-Image Turbo workflow exported directly from ComfyUI in API format with the correct node architecture:
+- `CLIPLoader` with `type: "lumina2"` (not generic CLIPTextEncode)
+- `EmptySD3LatentImage` (not EmptyLatentImage)
+- `ModelSamplingAuraFlow` with `shift: 3`
+- `ConditioningZeroOut` for negative conditioning
+- `res_multistep` sampler + `simple` scheduler, 8 steps, CFG 1.0
+- `ae.safetensors` VAE
+- 1920x1080 output resolution
+
+CORS is handled at the ComfyUI level via the `--enable-cors-header *` launch flag — no ST proxy required.
+
+**`localsd`** — Routes through ST's `/api/sd/generate` endpoint (A1111 or any ST SD extension backend). Handles both direct image responses and base64 JSON responses.
+
+Both new backends also have a blob-only preview variant (`generateViaComfyUIBlob`, `generateViaLocalSDBlob`) used by the workshop's thumbnail preview without uploading to the server.
+
+### New: `verifyImage(filename)`
+Before serving a cached file, loads it into an in-memory `<img>` element with a 10-second timeout to confirm it's not corrupt or zero-dimension. Corrupt files are flagged for regeneration. The upstream had no corruption detection.
+
+### Changed: `fetchFullBlob()` is now backend-aware
+The original `fetchFullBlob()` always used Pollinations. The fork routes it through whichever backend is configured.
+
+### Changed: `fetchFileIndex()` normalization
+The original used: `f => (typeof f === 'string' ? f : f.filename)`
+
+The fork expands this with explicit null-safety (`f?.filename ?? ''`) and adds a comment block explaining the normalization, since ST's `/api/backgrounds/all` returns `{ filename, isAnimated }` objects. The fork also returns a plain array `allImages` (not a Set) to support pattern-based cross-session matching.
+
+### Changed: `generate()` routing
+Now checks `generationBackend` setting and routes to `generateViaComfyUI()`, `generateViaLocalSD()`, or Pollinations accordingly.
+
+---
+
+## state.js — Changes
+
+### Removed: `allFileIndex` (Set) — Replaced with `allImages` (Array) + `addToAllImages()`
+
+The upstream uses `allFileIndex: new Set()` — a Set of all vistalyze filenames across sessions, populated once at boot and never updated during a session.
+
+The fork replaces this with:
+- `allImages: []` — a plain Array of all server background filenames (unfiltered, not just vistalyze files)
+- `setAllImages(images)` — overwrites on boot
+- `addToAllImages(filename)` — appends a single filename after each successful generation
+
+The Array format is required because `findCrossSessionImage()` uses `startsWith`/`endsWith` pattern matching rather than exact key lookups. `addToAllImages()` ensures newly generated files are immediately findable by cross-session lookups within the same session, without waiting for the next boot.
+
+### Removed: `sourceSessionId` and `customBg` location fields
+
+The upstream tracks two special location types:
+- `customBg` — a location pinned to a specific user-chosen background image
+- `sourceSessionId` — a location "borrowed" from another chat, with its asset living under the source session's namespace
+
+The fork removes both concepts. All locations generate fresh assets under the current session.
+
+### Removed: `_importCache`
+
+Tracked temporary data for the cross-chat import feature. Removed along with the import feature.
+
+---
+
+## logic/pipeline.js — Changes
+
+### New: `findCrossSessionImage(key, allImages)`
+Before calling `generate()`, searches `allImages` for any file matching `vistalyze_*_<key>.png` regardless of sessionId. If found, serves the existing file instead of generating a new one. Called in three places:
+1. `handleKnownLocation()` — when a file isn't found by exact match
+2. `handleUnknownLocation()` — before first-time generation of a newly approved location
+3. Boot sequence (via `bootstrapper.js`) — on startup before targeted regeneration
+
+### New: Image corruption detection in `handleKnownLocation()`
+When a file is found in `fileIndex`, calls `verifyImage()` before applying it. If corrupt, regenerates automatically. The upstream had no corruption detection.
+
+### Changed: `handleKnownLocation()` cache lookup chain
+The upstream checked `state.allFileIndex.has(filename)` (one check), then regenerated if missing.
+
+The fork uses a three-step lookup:
+1. Check `state.fileIndex` (current session) → verify → apply
+2. Check `state.allImages.includes(filename)` (exact match, full server list)
+3. `findCrossSessionImage()` (pattern match across all sessions)
+4. Only if all three miss → regenerate
+
+### Changed: `addToAllImages()` called after every generation
+After every successful `generate()` call, the fork calls both `addToFileIndex(newFile)` and `addToAllImages(newFile)`. The upstream only called `addToFileIndex()`. Without this, subsequent same-session visits would miss the cross-session lookup and regenerate unnecessarily.
+
+### Changed: Cancelled location discovery preserves current background
+The upstream called `clearBg()` and nulled state if a new location discovery was cancelled or failed. The fork preserves the current background on cancellation.
+
+---
+
+## logic/bootstrapper.js — Changes
+
+### Removed: Bulk self-healing regeneration queue
+
+The upstream boot sequence queues every location in the library whose image is missing and regenerates all of them at boot. It has special handling for `sourceSessionId` (borrowed assets) and `customBg` (pinned backgrounds).
+
+The fork removes the bulk queue entirely. Boot now only attempts to restore the **current scene's** image. All other locations are regenerated on-demand by the pipeline when visited. This prevents intentionally deleted files from reappearing on every boot.
+
+### Changed: `isImageMissing` check extended to `allImages`
+
+Upstream: `!state.fileIndex.has(currentImage)`
+
+Fork: `!state.fileIndex.has(expectedFilename) && !state.allImages.includes(expectedFilename)`
+
+This prevents triggering regeneration when the file exists on the server under the current sessionId but outside the session-scoped `fileIndex`.
+
+### Changed: Cross-session fallback at boot
+
+After the `isImageMissing` check, the fork calls `findCrossSessionImage()` before regenerating. If any `vistalyze_*_<key>.png` exists for the current location's key, it's used directly and patched into the DNA.
+
+### Changed: `addToAllImages()` called after boot regeneration
+
+When boot does trigger a targeted regeneration, `addToAllImages(newFile)` is called alongside `addToFileIndex(newFile)`.
+
+### Changed: State imports
+
+Upstream imported `setAllFileIndex`. Fork imports `setAllImages`, `addToAllImages`, `updateState`, and `findCrossSessionImage` (from pipeline.js).
+
+---
+
+## defaults.js — Changes
+
+### Added: Two new constants
+```js
+export const DEFAULT_GENERATION_BACKEND = 'pollinations'
+export const DEFAULT_COMFYUI_PORT = 8188
+```
+
+### Changed: Dev mode image dimensions
+- Upstream: `DEV_IMAGE_WIDTH = 320`, `DEV_IMAGE_HEIGHT = 180`
+- Fork: `DEV_IMAGE_WIDTH = 456`, `DEV_IMAGE_HEIGHT = 256`
+
+---
+
+## settings/data.js — Changes
+
+### Added: Two new profile defaults
+```js
+generationBackend: DEFAULT_GENERATION_BACKEND,  // 'pollinations' | 'localsd' | 'comfyui'
+comfyUiPort:       DEFAULT_COMFYUI_PORT,         // 8188
+```
+
+---
+
+## ui/settings/templates.js — Changes
+
+### Added: Backend selector and ComfyUI port field
+New UI under Image Generation settings:
+- Dropdown: Pollinations (default) / Local SD (ST extension) / ComfyUI (local)
+- ComfyUI port number input (hidden unless ComfyUI is selected, default 8188, range 1024–65535)
+
+---
+
+## logic/commit.js — Changes
+
+### Removed: `customBg` and `sourceSessionId` branching
+
+The upstream `handleFinalizeWorkshop()` branches across three asset cases: `customBg` (pinned background), `sourceSessionId` (borrowed asset), and normal generation. The fork removes both special cases — all commits generate under the current session.
+
+---
+
+## Summary Table
+
+| Area | Upstream | Fork |
+|---|---|---|
+| Image backends | Pollinations only | Pollinations + LocalSD + ComfyUI |
+| ComfyUI workflow | — | Z-Image Turbo (API format, correct node graph) |
+| Cross-session image reuse | `allFileIndex` Set, exact match only | `allImages` Array + `findCrossSessionImage()` pattern match |
+| `allImages` updated after generation | No | Yes (`addToAllImages()`) |
+| Image corruption detection | No | Yes (`verifyImage()` before applying cached files) |
+| Boot regeneration | Bulk queue — all missing locations | Current scene only; others on-demand |
+| `customBg` / `sourceSessionId` support | Yes | Removed |
+| Cross-chat import feature | Yes | Removed |
+| `bgHijacker.js` | Yes | Removed |
+| Dev image dimensions | 320x180 | 456x256 |
