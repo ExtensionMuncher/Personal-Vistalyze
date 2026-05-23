@@ -22,7 +22,6 @@ These features (cross-chat library import, custom background hijacking) are not 
 
 ## Files Added in Fork
 
-- **`plans/comfyui-cross-session-cache.md`** — planning document for the ComfyUI and caching changes
 - **`bugs/`** — bug tracking folder
 
 ---
