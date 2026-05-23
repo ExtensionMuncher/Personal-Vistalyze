@@ -1,16 +1,23 @@
 /**
  * @file data/default-user/extensions/vistalyze/orphanDetector.js
- * @stamp {"utc":"2026-05-06T16:00:00.000Z"}
+ * @stamp {"utc":"2026-03-29T00:00:00.000Z"}
  * @architectural-role Orphan File Detection
  * @description
  * Detects background image files in public/backgrounds/ that are no longer
- * associated with any known chat session.
+ * associated with any known chat session. Two-tier system:
  *
- * @updates
- * - Expanded full audit scan to protect sourceSessionId values found in 
- *   location_def records. This ensures borrowed assets from foreign chats 
- *   are not flagged as orphans.
- * - Hardened message parser to correctly navigate the array-based DNA pattern.
+ *   fastDiff    — pure function, runs at every boot with zero extra IO.
+ *                 Diffs vistalyze_* files against the knownSessions registry
+ *                 already held in extension_settings. Instant. May produce
+ *                 false positives if knownSessions is incomplete (e.g. chat
+ *                 opened on a different device).
+ *
+ *   runFullAudit — manual trigger only. Iterates all characters and their
+ *                  chat files to build a complete knownSessions set, then
+ *                  runs fastDiff against it. Expensive (N requests), never
+ *                  runs automatically. Result is cached in auditCache.
+ *
+ * Neither function auto-deletes anything. The orphanModal owns deletion.
  *
  * @api-declaration
  * fastDiff(allImages, knownSessions) → string[]   (suspect filenames)
@@ -25,16 +32,12 @@
 import { characters, getRequestHeaders } from '../../../../script.js'
 import { getMetaSettings } from './settings/data.js'
 
-/**
- * Identifies potential orphan files by comparing filenames against a list 
- * of known session identifiers.
- * @param {string[]} allImages 
- * @param {string[]} knownSessions 
- * @returns {string[]}
- */
 export function fastDiff(allImages, knownSessions) {
     const knownSet = new Set(knownSessions)
+    // Defensive: ensure every element is a string before calling .startsWith()
+    // to handle mixed-type responses from /api/backgrounds/all.
     return allImages
+        .map(f => typeof f === 'string' ? f : (f?.filename ?? ''))
         .filter(f => f.startsWith('vistalyze_'))
         .filter(f => {
             const sessionId = f.split('_')[1]
@@ -42,12 +45,6 @@ export function fastDiff(allImages, knownSessions) {
         })
 }
 
-/**
- * Performs a deep scan of all chat logs to build a comprehensive list of 
- * active and borrowed session IDs.
- * @param {string[]} allImages 
- * @returns {Promise<string[]>}
- */
 export async function runFullAudit(allImages) {
     const knownSessions = new Set(getMetaSettings()?.knownSessions ?? [])
 
@@ -83,9 +80,7 @@ export async function runFullAudit(allImages) {
                 })
                 const messages = await res.json()
                 if (!Array.isArray(messages)) continue
-                
                 for (const element of messages) {
-                    // 1. Extract Turn Session ID (Identity of the chat turn)
                     const sessionId =
                         element?.vistalyze?.sessionId ??
                         element?.extra?.vistalyze?.sessionId ??
@@ -93,17 +88,6 @@ export async function runFullAudit(allImages) {
                         element?.extra?.localyze?.sessionId ??
                         null
                     if (sessionId) knownSessions.add(sessionId)
-
-                    // 2. Extract Borrowed Session IDs (sourceSessionId in location_def)
-                    const vistalyzeData = element?.extra?.vistalyze ?? element?.vistalyze;
-                    if (vistalyzeData) {
-                        const records = Array.isArray(vistalyzeData) ? vistalyzeData : [vistalyzeData];
-                        for (const rec of records) {
-                            if (rec?.type === 'location_def' && rec.sourceSessionId) {
-                                knownSessions.add(rec.sourceSessionId);
-                            }
-                        }
-                    }
                 }
             } catch {
                 continue

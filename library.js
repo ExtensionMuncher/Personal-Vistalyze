@@ -1,13 +1,15 @@
 /**
  * @file data/default-user/extensions/vistalyze/library.js
- * @stamp {"utc":"2026-05-06T13:00:00.000Z"}
+ * @stamp {"utc":"2026-04-02T12:05:00.000Z"}
  * @architectural-role Chat DNA Writer
  * @description
  * Writes location_def records into message.extra.vistalyze as an array.
  * 
  * @updates
- * - Added support for sourceSessionId property to allow the engine to resolve 
- *   background assets generated in foreign chat sessions during imports.
+ * - Implemented the "Array Pattern" for storage.
+ * - Migrated from single-object records to a list of records.
+ * - This prevents the "Last Write Wins" bug where a scene transition 
+ *   could delete a location definition on the same message.
  *
  * @api-declaration
  * writeLocationDef(messageId, def, sessionId) → Promise<void>
@@ -24,8 +26,8 @@ import { saveChatConditional } from '../../../../script.js'
 /**
  * Writes a location definition into the chat DNA.
  * @param {number} messageId 
- * @param {object} def { key, name, description, imagePrompt, customBg, sourceSessionId }
- * @param {string} sessionId The current active session ID.
+ * @param {object} def { key, name, description, imagePrompt }
+ * @param {string} sessionId 
  */
 export async function writeLocationDef(messageId, def, sessionId) {
     const context = getContext()
@@ -51,9 +53,7 @@ export async function writeLocationDef(messageId, def, sessionId) {
         name: def.name,
         description: def.description,
         imagePrompt: def.imagePrompt,
-        customBg: def.customBg,           // Persist manual override if present
-        sourceSessionId: def.sourceSessionId, // Link to foreign asset session if imported
-        sessionId,                        // The session that owns this specific DNA entry
+        sessionId,
     });
 
     await saveChatConditional()

@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/vistalyze/logic/commit.js
- * @stamp {"utc":"2026-05-06T14:15:00.000Z"}
- * @version 1.4.0
+ * @stamp {"utc":"2026-04-04T12:30:00.000Z"}
+ * @version 1.2.1
  * @architectural-role IO Executor / Finalizer
  * @description
  * Handles the "Commit Phase" of the Location Workshop. Responsible for 
@@ -9,12 +9,10 @@
  * the chat history and filesystem.
  *
  * @updates
- * - Integrated sourceSessionId support: Implemented branching to detect and 
- *   verify borrowed assets from foreign sessions before falling back to generation.
- * - Implemented Swipe-Safety: DNA writes are now redirected to the nearest 
- *   User message to prevent data loss during AI message regeneration (swiping).
- * - Existence Check: Updated needsGeneration to check against the global file 
- *   registry (allImages/fileIndex) for both native and borrowed filenames.
+ * - Migration: Replaced all direct state mutations with upsertLocation, 
+ *   removeLocation, addToFileIndex, and clearWorkshop setters.
+ * - Maintained Two-Write Pattern: Transition intent is written before asset generation.
+ * - Integrated translation-ready t and translate wrappers for user-facing strings.
  *
  * @api-declaration
  * handleFinalizeWorkshop(targetKey) — Persists a draft and applies it as the active scene.
@@ -30,7 +28,7 @@
 import { saveChatConditional } from '../../../../../script.js';
 import { t, translate } from '../../../../i18n.js';
 import { getContext } from '../../../../extensions.js';
-import { log, warn, error } from '../utils/logger.js';
+import { log, error } from '../utils/logger.js';
 import { 
     state, 
     updateState, 
@@ -48,31 +46,12 @@ import {
 } from '../io/dnaWriter.js';
 
 /**
- * Returns a message index that is safe from AI swipes.
- * If the provided index is an AI message, it searches backwards for the 
- * nearest User message.
- * @param {number} index 
- * @returns {number}
- */
-function getSwipeSafeId(index) {
-    const context = getContext();
-    const chat = context.chat;
-    if (index < 0 || !chat) return 0;
-    
-    for (let i = index; i >= 0; i--) {
-        if (chat[i].is_user) return i;
-    }
-    return 0;
-}
-
-/**
  * Commits the current _draftLocations to the live state and persists them to DNA.
  * Syncs manual edits made in the Architect tab.
  */
 async function commitDraftLibrary() {
     const context = getContext();
     const lastMsgId = Math.max(0, context.chat.length - 1);
-    const safeMsgId = getSwipeSafeId(lastMsgId);
     
     for (const [key, draftDef] of Object.entries(state._draftLocations)) {
         const original = state.locations[key];
@@ -80,14 +59,12 @@ async function commitDraftLibrary() {
         const isModified = original && (
             original.name !== draftDef.name ||
             original.description !== draftDef.description ||
-            original.imagePrompt !== draftDef.imagePrompt ||
-            original.customBg !== draftDef.customBg ||
-            original.sourceSessionId !== draftDef.sourceSessionId
+            original.imagePrompt !== draftDef.imagePrompt
         );
 
         if (isNew || isModified) {
             log('Commit', `Persisting definition for: ${key}`);
-            await lockedWriteLocationDef(safeMsgId, draftDef, state.sessionId);
+            await lockedWriteLocationDef(lastMsgId, draftDef, state.sessionId);
             
             // Protected Update: Sync local library memory
             upsertLocation(draftDef);
@@ -120,57 +97,21 @@ export async function handleFinalizeWorkshop(targetKey, forceRegen = false) {
 
     const context = getContext();
     const lastMsgId = Math.max(0, context.chat.length - 1);
-    const safeMsgId = getSwipeSafeId(lastMsgId);
-
     const draftDef = state._draftLocations[targetKey];
     const original = state.locations[targetKey];
 
-    // --- Branching Asset Resolution ---
-    let targetFilename;
-    if (draftDef.customBg) {
-        targetFilename = draftDef.customBg;
-    } else if (draftDef.sourceSessionId) {
-        // Construct filename for borrowed asset
-        targetFilename = `vistalyze_${draftDef.sourceSessionId}_${targetKey}.png`;
-    } else {
-        // Standard session-bound filename
-        targetFilename = `vistalyze_${state.sessionId}_${targetKey}.png`;
-    }
-
-    // Existence check against the full cross-session index so borrowed files are found
-    const fileExists = state.allFileIndex.has(targetFilename);
-
-    // Detect if the visual state changed
-    const visualsModified = original && (
-        original.imagePrompt !== draftDef.imagePrompt || 
-        original.customBg !== draftDef.customBg ||
-        original.sourceSessionId !== draftDef.sourceSessionId
-    );
-
+    // Detect if the visual prompt changed (requires overwriting the current image)
+    const visualsModified = original && original.imagePrompt !== draftDef.imagePrompt;
+    const filename = `vistalyze_${state.sessionId}_${targetKey}.png`;
     const hasPregeneratedBlob = state._proposedFullBlob !== null;
-
-    // Generation needed if:
-    // 1. Not a manual custom background
-    // 2. AND (Forced OR visuals changed OR file missing)
-    // Note: Borrowed files (sourceSessionId) skip generation if they exist.
-    let needsGeneration = false;
-    if (!draftDef.customBg) {
-        if (draftDef.sourceSessionId) {
-            if (!fileExists) {
-                warn('Commit', `Borrowed asset ${targetFilename} missing. Localizing via generation.`);
-                needsGeneration = true;
-            }
-        } else {
-            needsGeneration = hasPregeneratedBlob || forceRegen || visualsModified || !fileExists;
-        }
-    }
+    const needsGeneration = hasPregeneratedBlob || forceRegen || visualsModified || !state.fileIndex.has(filename);
 
     // 1. Sync the library (Metadata definitions)
     await commitDraftLibrary();
 
-    // 2. WRITE 1: Immediate Narrative Intent (Saved to swipe-safe User message)
-    log('Commit', `Write 1: Recording transition to ${targetKey} at msg ${safeMsgId}`);
-    await lockedWriteSceneRecord(safeMsgId, {
+    // 2. WRITE 1: Immediate Narrative Intent
+    log('Commit', `Write 1: Recording transition to ${targetKey}`);
+    await lockedWriteSceneRecord(lastMsgId, {
         location: targetKey,
         image: null, 
         bg_declined: false
@@ -183,12 +124,9 @@ export async function handleFinalizeWorkshop(targetKey, forceRegen = false) {
         clearBg();
 
         try {
-            // Localization: If we generate, we use the current session ID
-            const generationFilename = `vistalyze_${state.sessionId}_${targetKey}.png`;
-
             // 3. IO: Async Asset Creation/Transfer
             const newFile = hasPregeneratedBlob
-                ? await uploadBlob(state._proposedFullBlob, generationFilename)
+                ? await uploadBlob(state._proposedFullBlob, filename)
                 : await generate(targetKey, draftDef, state.sessionId);
 
             // Protected Update: Record server file existence
@@ -196,7 +134,7 @@ export async function handleFinalizeWorkshop(targetKey, forceRegen = false) {
 
             // 4. WRITE 2: Eventual Consistency
             log('Commit', `Write 2: Patching transition with ${newFile}`);
-            await lockedPatchSceneImage(safeMsgId, newFile);
+            await lockedPatchSceneImage(lastMsgId, newFile);
             
             // Protected Update: Record asset completion
             updateState(targetKey, newFile);
@@ -208,10 +146,10 @@ export async function handleFinalizeWorkshop(targetKey, forceRegen = false) {
             if (window.toastr) window.toastr.error(t`Transition saved, but image failed: ${err.message}`, 'Vistalyze');
         }
     } else {
-        // Immediate transition: Asset (custom, borrowed, or native) exists
-        await lockedPatchSceneImage(safeMsgId, targetFilename);
-        updateState(targetKey, targetFilename);
-        setBg(targetFilename);
+        // Immediate transition (Asset already exists)
+        await lockedPatchSceneImage(lastMsgId, filename);
+        updateState(targetKey, filename);
+        setBg(filename);
         if (window.toastr) window.toastr.success(t`Location switched to: ${draftDef.name}`, 'Vistalyze');
     }
 
@@ -221,8 +159,9 @@ export async function handleFinalizeWorkshop(targetKey, forceRegen = false) {
 
 /**
  * Retroactive location assignment.
- * Writes a scene record at a specific historical message.
- * Target message is adjusted for swipe-safety if it is an AI message.
+ * Writes a scene record at a specific historical message instead of lastMsgId.
+ * If the targeted message IS the last message, the background is also updated.
+ * Otherwise only the DNA chain is patched (no background change).
  *
  * @param {string} targetKey The slug of the location being applied.
  * @param {number} msgId     The specific message index to tag.
@@ -235,33 +174,50 @@ export async function handleFinalizeWorkshopAtMessage(targetKey, msgId) {
     const context = getContext();
     const lastMsgId = Math.max(0, context.chat.length - 1);
     const draftDef = state._draftLocations[targetKey];
-    
-    // Target the User message to ensure historical metadata survives swipes
-    const safeMsgId = getSwipeSafeId(msgId);
-    const isCurrentContext = (msgId === lastMsgId);
+    const isCurrentMessage = (msgId === lastMsgId);
 
-    // 1. Sync the library
+    // 1. Sync the library (definitions always written at lastMsgId)
     await commitDraftLibrary();
 
-    // 2. Write the scene record
-    await lockedWriteSceneRecord(safeMsgId, {
+    // 2. Write the scene record at the specific message
+    await lockedWriteSceneRecord(msgId, {
         location: targetKey,
         image: null,
         bg_declined: false
     });
 
-    if (isCurrentContext) {
-        // Delegate to standard active finalize for consistency
-        await handleFinalizeWorkshop(targetKey);
+    if (isCurrentMessage) {
+        // Active scene path — same image generation logic as handleFinalizeWorkshop
+        updateState(targetKey, null);
+
+        const original = state.locations[targetKey];
+        const visualsModified = original && original.imagePrompt !== draftDef.imagePrompt;
+        const filename = `vistalyze_${state.sessionId}_${targetKey}.png`;
+        const needsGeneration = visualsModified || !state.fileIndex.has(filename);
+
+        if (needsGeneration) {
+            clearBg();
+            try {
+                const newFile = await generate(targetKey, draftDef, state.sessionId);
+                addToFileIndex(newFile);
+                await lockedPatchSceneImage(msgId, newFile);
+                updateState(targetKey, newFile);
+                setBg(newFile);
+                if (window.toastr) window.toastr.success(t`Location applied: ${draftDef.name}`, 'Vistalyze');
+            } catch (err) {
+                error('Commit', 'Retroactive image gen failed:', err);
+                if (window.toastr) window.toastr.error(t`Transition saved, but image failed: ${err.message}`, 'Vistalyze');
+            }
+        } else {
+            await lockedPatchSceneImage(msgId, filename);
+            updateState(targetKey, filename);
+            setBg(filename);
+            if (window.toastr) window.toastr.success(t`Location switched to: ${draftDef.name}`, 'Vistalyze');
+        }
     } else {
         // Historical tag — DNA chain patched, background unchanged
-        // We write the image filename immediately as generation is rarely 
-        // appropriate for retroactive tagging of missing assets.
-        const targetFilename = draftDef.customBg || 
-            (draftDef.sourceSessionId ? `vistalyze_${draftDef.sourceSessionId}_${targetKey}.png` : `vistalyze_${state.sessionId}_${targetKey}.png`);
-        
-        await lockedPatchSceneImage(safeMsgId, targetFilename);
         if (window.toastr) window.toastr.info(t`Tagged as: ${draftDef.name}`, 'Vistalyze');
-        clearWorkshop();
     }
+
+    clearWorkshop();
 }

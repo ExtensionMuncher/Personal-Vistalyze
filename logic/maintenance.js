@@ -28,15 +28,18 @@
  */
 
 import { getContext } from '../../../../extensions.js';
-import { error } from '../utils/logger.js';
-import { 
-    state, 
-    syncDrafts, 
-    setWorkshopKey, 
-    updateDraftField, 
-    setProposedBlob, 
-    stageDiscovery, 
-    removeDraft 
+import { saveChatConditional, getRequestHeaders } from '../../../../../script.js';
+import { log, warn, error } from '../utils/logger.js';
+import {
+    state,
+    syncDrafts,
+    setWorkshopKey,
+    updateDraftField,
+    setProposedBlob,
+    stageDiscovery,
+    removeDraft,
+    removeLocation,
+    updateState
 } from '../state.js';
 import { getSettings } from '../settings/data.js';
 import { detectDescriber } from '../detector.js';
@@ -212,4 +215,81 @@ export function deleteDraftLocation(key) {
         return true;
     }
     return false;
+}
+
+/**
+ * Completely removes a location from the extension's history:
+ * 1. Deletes the background image file from the server
+ * 2. Removes ALL chat DNA records (location_def + scene) referencing this key
+ * 3. Removes the location from state.locations, state.fileIndex, and drafts
+ * 4. If this was the current scene, clears the background and state
+ * 5. Saves the chat
+ *
+ * @param {string} key The location key to nuke entirely.
+ */
+export async function deleteLocationCompletely(key) {
+    const context = getContext();
+    const filename = `vistalyze_${state.sessionId}_${key}.png`;
+    let deletedCount = 0;
+
+    // 1. Delete the background file from the server
+    try {
+        const res = await fetch('/api/backgrounds/delete', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({ filename }),
+        });
+        if (!res.ok) {
+            warn('Delete', `Server returned ${res.status} deleting file "${filename}"`);
+        } else {
+            log('Delete', `Background file "${filename}" deleted from server.`);
+        }
+    } catch (err) {
+        warn('Delete', `Failed to delete background file "${filename}":`, err);
+        // Continue with state and DNA cleanup even if file deletion fails
+    }
+
+    // 2. Purge ALL vistalyze DNA records referencing this key from the chat
+    for (let i = 0; i < context.chat.length; i++) {
+        const msg = context.chat[i];
+        const records = msg.extra?.vistalyze;
+        if (!records || !Array.isArray(records)) continue;
+
+        const before = records.length;
+        msg.extra.vistalyze = records.filter(rec => {
+            if (!rec || typeof rec !== 'object') return true; // keep malformed
+            // Remove location_def records matching the key
+            if (rec.type === 'location_def' && rec.key === key) return false;
+            // Remove scene records referencing the location
+            if (rec.type === 'scene' && rec.location === key) return false;
+            return true; // keep everything else
+        });
+        deletedCount += before - msg.extra.vistalyze.length;
+    }
+
+    if (deletedCount > 0) {
+        await saveChatConditional();
+        log('Delete', `Removed ${deletedCount} DNA records for location "${key}" from chat.`);
+    }
+
+    // 3. Remove from state
+    removeLocation(key);
+    state.fileIndex.delete(filename);
+    state.allImages = state.allImages.filter(f => f !== filename);
+    removeDraft(key);
+
+    // 4. If this was the current scene, reset current tracking
+    if (state.currentLocation === key) {
+        const { clear: clearBg } = await import('../background.js');
+        clearBg();
+        updateState(null, null);
+        log('Delete', `Location "${key}" was the active scene. Background cleared.`);
+    }
+
+    if (state._activeWorkshopKey === key) {
+        setWorkshopKey(null);
+    }
+
+    log('Delete', `Location "${key}" completely removed from library and chat history.`);
+    return true;
 }

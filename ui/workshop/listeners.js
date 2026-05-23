@@ -1,13 +1,15 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/workshop/listeners.js
- * @stamp {"utc":"2026-05-06T15:05:00.000Z"}
+ * @stamp {"utc":"2026-04-04T13:05:00.000Z"}
  * @architectural-role UI Event Listeners
  * @description
  * Centralizes all DOM event bindings for the Location Workshop modal.
  *
  * @updates
- * - Standardized Warning: Updated "Select a location" warning to use "Pick from Gallery" context.
- * - Refresh Logic: Ensures renderArchitect is called after customBg changes to update the button label.
+ * - Migration: Replaced direct state mutations with setWorkshopKey, 
+ *   setProposedBlob, and updateDraftField setters.
+ * - Optimized Syncing: UI input now flows through state.js gatekeepers.
+ * - Integrated translation-ready t and translate wrappers for user-facing strings.
  *
  * @api-declaration
  * bindWorkshopEvents(handlers) -> void
@@ -16,19 +18,19 @@
  *   assertions:
  *     purity: IO
  *     state_ownership: [state (mutates via setters)]
- *     external_io: [JQuery DOM Events, maintenance.js, commit.js, bgHijacker.js, i18n]
+ *     external_io: [JQuery DOM Events (read/write), maintenance.js, commit.js, i18n]
  */
 
 import { t, translate } from '../../../../../i18n.js';
 import { state, setWorkshopKey, setProposedBlob, updateDraftField } from '../../state.js';
 import { error } from '../../utils/logger.js';
-import { pickNativeBackground } from '../bgHijacker.js';
-import { openGlobalLibrary } from '../importModal.js';
 import {
     regenField,
     discoverySearch,
     previewProposedImage,
-    deleteDraftLocation
+    generateFullPreview,
+    deleteDraftLocation,
+    deleteLocationCompletely
 } from '../../logic/maintenance.js';
 
 /**
@@ -49,46 +51,6 @@ export function bindWorkshopEvents(handlers) {
     // Close button logic
     $overlay.on('click', '#lz-workshop-close', () => { 
         $overlay.addClass('lz-hidden'); 
-    });
-
-    // ─── Global Footer Actions ───────────────────────────────────────────
-
-    /**
-     * Global Library Access.
-     * Hides the current workshop and enters the cross-chat discovery mode.
-     */
-    $overlay.on('click', '#lz-workshop-global-lib', () => {
-        $overlay.addClass('lz-hidden');
-        openGlobalLibrary();
-    });
-
-    /**
-     * Standardized Background Action Button.
-     * Handles both selection and clearing of manual backgrounds.
-     */
-    $overlay.on('click', '#lz-workshop-alt-bg', async function() {
-        const key = state._activeWorkshopKey;
-        if (!key || !state._draftLocations[key]) {
-            if (window.toastr) window.toastr.warning(translate('Select a location first.'));
-            return;
-        }
-
-        const draft = state._draftLocations[key];
-
-        if (draft.customBg) {
-            // Path A: Clear existing selection
-            updateDraftField(key, 'customBg', null);
-            renderArchitect();
-            renderLibrary();
-        } else {
-            // Path B: Open native ST gallery
-            const filename = await pickNativeBackground();
-            if (filename) {
-                updateDraftField(key, 'customBg', filename);
-                renderArchitect();
-                renderLibrary();
-            }
-        }
     });
 
     // ─── Library Tab Listeners ────────────────────────────────────────────
@@ -146,24 +108,30 @@ export function bindWorkshopEvents(handlers) {
         switchTab('architect');
     });
 
-    // Remove location from draft library
-    $overlay.on('click', '.lz-lib-delete', function(e) {
+    // Permanently delete location: removes server file, all DNA records, and state
+    $overlay.on('click', '.lz-lib-delete', async function(e) {
         e.stopPropagation();
         const key = $(this).closest('.lz-library-item').data('key');
         const name = state._draftLocations[key]?.name || translate('this location');
         
-        if (confirm(t`Remove "${name}" from the library?`)) {
-            deleteDraftLocation(key);
-            renderLibrary();
-            if (state._activeWorkshopKey === key) renderArchitect();
+        if (confirm(t`Permanently delete "${name}" and all its history? The background file and all scene records will be removed.`)) {
+            try {
+                await deleteLocationCompletely(key);
+                renderLibrary();
+                if (window.toastr) window.toastr.success(t`Location "${name}" permanently deleted.`);
+            } catch (err) {
+                error('Workshop', 'Permanent delete failed:', err);
+                if (window.toastr) window.toastr.error(t`Failed to delete location: ${err.message}`);
+            }
         }
     });
 
-    // Text area click: apply directly and close
-    $overlay.on('click', '.lz-lib-text', async function() {
+    // Immediate Apply from Library
+    $overlay.on('click', '.lz-lib-apply', async function(e) {
+        e.stopPropagation();
         const key = $(this).closest('.lz-library-item').data('key');
         const { handleFinalizeWorkshop } = await import('../../logic/commit.js');
-
+        
         try {
             await handleFinalizeWorkshop(key);
             $overlay.addClass('lz-hidden');
@@ -172,22 +140,9 @@ export function bindWorkshopEvents(handlers) {
         }
     });
 
-    // Folder icon shortcut: pick an existing ST background for this item
-    $overlay.on('click', '.lz-lib-pick-bg', async function(e) {
-        e.stopPropagation();
-        const key = $(this).closest('.lz-library-item').data('key');
-
-        const filename = await pickNativeBackground();
-        if (filename) {
-            updateDraftField(key, 'customBg', filename);
-            renderLibrary();
-            if (state._activeWorkshopKey === key) renderArchitect();
-        }
-    });
-
     // ─── Architect Tab Listeners ──────────────────────────────────────────
     
-    // Live Input Syncing
+    // Live Input Syncing: Updates state._draftLocations as user types.
     $overlay.on('input', '#lz-arch-name, #lz-arch-definition, #lz-arch-visuals', function() {
         const key = state._activeWorkshopKey;
         if (!key || !state._draftLocations[key]) return;
@@ -198,6 +153,8 @@ export function bindWorkshopEvents(handlers) {
             'lz-arch-visuals': 'imagePrompt'
         };
 
+        // Protected Update: Synced field value.
+        // updateDraftField handles the nulling of blobs if imagePrompt changes.
         updateDraftField(key, fieldMap[this.id], $(this).val());
 
         if (this.id === 'lz-arch-visuals') {
@@ -205,7 +162,7 @@ export function bindWorkshopEvents(handlers) {
         }
     });
 
-    // AI Refinement (The "Sparks")
+    // AI Refinement (The "Sparks"): Triggers targeted LLM extraction
     $overlay.on('click', '.lz-regen-spark', async function() {
         const field = $(this).data('field');
         const key = state._activeWorkshopKey;
@@ -236,7 +193,26 @@ export function bindWorkshopEvents(handlers) {
         }
     });
 
-    // Finalize Draft
+    // Regenerate Image: Manually request a full-resolution recreation for the active location.
+    $overlay.on('click', '#lz-arch-regen-btn', async function() {
+        const key = state._activeWorkshopKey;
+        if (!key) {
+            if (window.toastr) window.toastr.warning(translate('Select a location in the Architect tab first.'), 'Vistalyze');
+            return;
+        }
+        const $btn = $(this);
+        $btn.prop('disabled', true).text(translate('Generating...'));
+        try {
+            await generateFullPreview(key);
+            renderArchitect();
+        } catch (err) {
+            if (window.toastr) window.toastr.error(t`Regeneration failed: ${err.message}`, 'Vistalyze');
+        } finally {
+            $btn.prop('disabled', false).text(translate('Regenerate Image'));
+        }
+    });
+
+    // Finalize Draft: Generates full-res image, commits to DNA, applies scene.
     $overlay.on('click', '#lz-arch-finalize', async function() {
         const key = state._activeWorkshopKey;
         if (!key) {
@@ -260,6 +236,7 @@ export function bindWorkshopEvents(handlers) {
 
     // ─── Explorer Tab Listeners ───────────────────────────────────────────
     
+    // Discovery Logic: Analyzes context to find new locations
     $overlay.on('click', '#lz-explorer-go', async function() {
         const keywords = $('#lz-explorer-keywords').val();
         const $status = $('#lz-explorer-status');
@@ -271,8 +248,11 @@ export function bindWorkshopEvents(handlers) {
         try {
             const key = await discoverySearch(keywords);
             if (key) {
+                // Success: Discovery logic handles key setting.
+                // Reset previews for the new discovery.
                 setProposedBlob('thumbnail', null);
                 setProposedBlob('full', null);
+                
                 switchTab('architect');
                 $('#lz-explorer-keywords').val('');
             } else {

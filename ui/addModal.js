@@ -1,30 +1,30 @@
 /**
  * @file data/default-user/extensions/vistalyze/ui/addModal.js
- * @stamp {"utc":"2026-05-06T12:00:00.000Z"}
+ * @stamp {"utc":"2026-04-04T12:40:00.000Z"}
  * @architectural-role New Location Review UI
  * @description
- * Modal for reviewing and approving a new location definition.
- * Updated to implement the standardized split-footer layout.
+ * Modal for reviewing, editing, and approving a new location definition.
+ * Includes data-i18n attributes for native SillyTavern translation support.
  *
  * @updates
- * - Standardized "Select existing" button on the far left of the popup footer.
- * - Grouped "Cancel" and "Yes" buttons on the far right using a flex container.
- * - Applied lz-primary-action (Red) class to the "Yes" confirmation button.
- * - Simplified button text and removed icons for a cleaner "flat" appearance.
+ * - Standardized Field Mapping: Uses 'description' and 'imagePrompt' to ensure
+ *   data consistency with logic/commit.js and logic/pipeline.js.
+ * - Standardized Labels: Renamed UI labels to "Definition" and "Visuals".
+ * - Preview Support: Correctly utilizes the 'visuals' textarea for fetchPreviewBlob.
+ * - Integrated translation-ready t and translate wrappers for user-facing strings.
  *
  * @api-declaration
- * openAddModal(def) → Promise<{ name, key, description, imagePrompt, customBg } | null>
+ * openAddModal(def) → Promise<{ name, key, description, imagePrompt } | null>
  *
  * @contract
  *   assertions:
  *     purity: IO
  *     state_ownership: []
- *     external_io: [callPopup, fetchPreviewBlob, pickNativeBackground, i18n]
+ *     external_io: [callPopup, fetchPreviewBlob, i18n]
  */
 import { callPopup } from '../../../../../script.js'
 import { t, translate } from '../../../../i18n.js'
 import { fetchPreviewBlob } from '../imageCache.js'
-import { pickNativeBackground } from './bgHijacker.js'
 import { escapeHtml, slugify } from '../utils/history.js'
 import { error } from '../utils/logger.js'
 
@@ -33,11 +33,6 @@ import { error } from '../utils/logger.js'
  * @param {object} def Initial definition from the AI detector.
  */
 export async function openAddModal(def) {
-    // 1. Cleanup stale state
-    $('#lz-add-use-existing').remove();
-
-    let earlyResult = null;
-
     const popupPromise = callPopup(
         `<h3 data-i18n="vistalyze.add_modal.title">Add Location to Library</h3>
 
@@ -63,81 +58,24 @@ export async function openAddModal(def) {
         'confirm',
     )
 
-    // 2. Structural Layout Adjustment (Split Footer)
-    const $controls = $('#dialogue_popup_controls');
-    const $okBtn     = $('#dialogue_popup_ok');
-    const $cancelBtn = $('#dialogue_popup_cancel');
-
-    // Create the left-aligned action
-    const $useExistingBtn = $(`<div id="lz-add-use-existing" class="menu_button" style="white-space:nowrap;">
-        <i class="fa-solid fa-images"></i> ${translate('vistalyze.add_modal.btn_use_existing')}
-    </div>`);
-
-    // Create the right-aligned group
-    const $rightGroup = $('<div class="lz-footer-right"></div>');
-
-    // Apply layout rules
-    $controls.css({
-        'display': 'flex',
-        'justify-content': 'space-between',
-        'align-items': 'center',
-        'width': '100%',
-        'padding': '10px 20px 20px'
-    });
-
-    // Color code the primary action
-    $okBtn.addClass('lz-primary-action').text(translate('Yes'));
-    $cancelBtn.text(translate('Cancel'));
-
-    // Detach native buttons before emptying so jQuery preserves their event handlers.
-    // .empty() calls cleanData() on removed children — detaching first prevents that.
-    $okBtn.detach();
-    $cancelBtn.detach();
-
-    // Reconstruct the footer DOM
-    $controls.empty().append($useExistingBtn).append($rightGroup);
-    $rightGroup.append($cancelBtn).append($okBtn);
-
-    // 3. Event Binding
+    // Bind slugification handler: name -> key
     $('#lz-add-name').on('input', function () {
         $('#lz-add-key').val(slugify(this.value))
     })
 
-    $useExistingBtn.on('click', async function () {
-        const filename = await pickNativeBackground();
-        if (!filename) return;
-
-        const name = $('#lz-add-name').val().trim();
-        const key  = $('#lz-add-key').val().trim();
-
-        if (!name || !key) {
-            if (window.toastr) window.toastr.warning(t`Fill in Name first, then select a background.`, 'Vistalyze');
-            return;
-        }
-
-        earlyResult = {
-            name,
-            key,
-            description: $('#lz-add-definition').val().trim(),
-            imagePrompt: '',
-            customBg: filename,
-        };
-
-        $cancelBtn.trigger('click');
-    });
-
+    // Bind preview handler using the 'visuals' field
     $('#lz-add-preview-btn').on('click', async function () {
         const visuals = $('#lz-add-visuals').val().trim()
-        if (!visuals) {
-            if (window.toastr) window.toastr.warning(t`Enter visuals description first.`, 'Vistalyze');
-            return;
+        if (!visuals) { 
+            if (window.toastr) window.toastr.warning(t`Enter visuals description first.`, 'Vistalyze'); 
+            return; 
         }
-
+        
         const btn = $(this)
         const status = $('#lz-preview-status')
         btn.prop('disabled', true).text(translate('Fetching...'))
         status.text('')
-
+        
         try {
             const objectUrl = await fetchPreviewBlob(visuals)
             $('#lz-preview-container').show()
@@ -152,16 +90,16 @@ export async function openAddModal(def) {
         }
     })
 
-    const confirmed = await popupPromise;
-    if (earlyResult) return earlyResult;
-    if (!confirmed) return null;
+    const confirmed = await popupPromise
 
-    const name = $('#lz-add-name').val().trim();
-    const key  = $('#lz-add-key').val().trim();
+    if (!confirmed) return null
 
+    const name = $('#lz-add-name').val().trim()
+    const key  = $('#lz-add-key').val().trim()
+    
     if (!name || !key) {
-        if (window.toastr) window.toastr.warning(t`Name and Key are required.`, 'Vistalyze');
-        return null;
+        if (window.toastr) window.toastr.warning(t`Name and Key are required.`, 'Vistalyze')
+        return null
     }
 
     return {
@@ -169,6 +107,5 @@ export async function openAddModal(def) {
         key,
         description: $('#lz-add-definition').val().trim(),
         imagePrompt: $('#lz-add-visuals').val().trim(),
-        customBg: null,
-    };
+    }
 }

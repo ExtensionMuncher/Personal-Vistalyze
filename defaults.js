@@ -58,6 +58,12 @@ export const DEFAULT_IMAGE_PROMPT_TEMPLATE =
 Style: Concept Art for Video Games, in the style of Frank Cho, comic book style.
 `
 
+/** Generation backend: 'pollinations' (default), 'localsd' (ST SD extension), or 'comfyui' (direct ComfyUI). */
+export const DEFAULT_GENERATION_BACKEND = 'pollinations'
+
+/** Default ComfyUI server port (for direct API calls). */
+export const DEFAULT_COMFYUI_PORT = 8188
+
 /** Dev mode — generates recognizable but low-cost images. */
 export const DEFAULT_DEV_MODE = false
 
@@ -74,8 +80,8 @@ export const DEFAULT_AUTO_DETECT_ENABLED = true
 export const DEFAULT_AUTO_ACCEPT_LOCATION = false
 export const DEFAULT_AUTO_ACCEPT_DESCRIPTION = false
 
-export const DEV_IMAGE_WIDTH  = 320
-export const DEV_IMAGE_HEIGHT = 180
+export const DEV_IMAGE_WIDTH  = 456
+export const DEV_IMAGE_HEIGHT = 256
 
 /** Default turn-pair history for LLM calls. */
 export const DEFAULT_BOOLEAN_HISTORY = 2

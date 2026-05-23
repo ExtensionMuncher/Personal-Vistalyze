@@ -308,25 +308,11 @@
 .lz-workshop-controls {
     padding: 10px 20px 20px;
     display: flex;
-    justify-content: space-between; /* Pushes select-existing left, group right */
-    align-items: center;
+    justify-content: space-between;
     gap: 12px;
     flex-shrink: 0;
 }
 
-.lz-footer-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.lz-primary-action {
-    background-color: var(--SmartThemeErrorColor) !important;
-    color: white !important;
-    border: none !important;
-    font-weight: bold !important;
-}
-
-.lz-primary-action:hover {
-    filter: brightness(1.2);
+.lz-workshop-controls .menu_button {
+    min-width: 120px;
 }

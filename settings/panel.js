@@ -37,14 +37,15 @@ import {
     updateMetaSetting, 
     switchProfile 
 } from './data.js';
-import { 
-    DEFAULT_BOOLEAN_PROMPT, 
-    DEFAULT_CLASSIFIER_PROMPT, 
-    DEFAULT_DESCRIBER_PROMPT, 
+import {
+    DEFAULT_BOOLEAN_PROMPT,
+    DEFAULT_CLASSIFIER_PROMPT,
+    DEFAULT_DESCRIBER_PROMPT,
     DEFAULT_DISCOVERY_PROMPT,
-    DEFAULT_IMAGE_PROMPT_TEMPLATE, 
-    DEFAULT_IMAGE_MODEL, 
-    POLLINATIONS_MODELS 
+    DEFAULT_IMAGE_PROMPT_TEMPLATE,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_COMFYUI_PORT,
+    POLLINATIONS_MODELS
 } from '../defaults.js';
 
 import { buildPanelHTML } from '../ui/settings/templates.js';
@@ -104,6 +105,10 @@ function populateInputs() {
     });
 
     $('#lz-image-model').val(s.imageModel ?? DEFAULT_IMAGE_MODEL);
+    $('#lz-generation-backend').val(s.generationBackend ?? 'pollinations');
+    $('#lz-comfyui-port').val(s.comfyUiPort ?? DEFAULT_COMFYUI_PORT);
+    const showComfyPort = (s.generationBackend ?? 'pollinations') === 'comfyui';
+    $('#lz-comfyui-port-row').toggle(showComfyPort);
     $('#lz-dev-mode').prop('checked', s.devMode ?? false);
     $('#lz-parallax-enabled').prop('checked', meta.parallaxEnabled ?? false);
 
@@ -235,6 +240,25 @@ function bindHandlers() {
         
         // Protected Update: Update active model
         updateActiveSetting('imageModel', val);
+        updateDirtyIndicator(meta);
+    });
+
+    $('#lz-settings').on('change', '#lz-generation-backend', function () {
+        const val = $(this).val() || 'pollinations';
+        
+        // Show/hide ComfyUI port input based on selection
+        $('#lz-comfyui-port-row').toggle(val === 'comfyui');
+        
+        // Protected Update: Update generation backend
+        updateActiveSetting('generationBackend', val);
+        updateDirtyIndicator(meta);
+    });
+
+    $('#lz-settings').on('change', '#lz-comfyui-port', function () {
+        const val = parseInt($(this).val()) || DEFAULT_COMFYUI_PORT;
+        
+        // Protected Update: Update ComfyUI port
+        updateActiveSetting('comfyUiPort', val);
         updateDirtyIndicator(meta);
     });
 

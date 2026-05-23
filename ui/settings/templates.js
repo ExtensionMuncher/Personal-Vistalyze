@@ -192,6 +192,21 @@ export function buildPanelHTML(meta, availableModels) {
                         <span style="font-size:0.78em;opacity:0.55;">{{image_prompt}} {{name}} {{description}}</span>
                     </div>
 
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <label style="font-size:0.85em;opacity:0.75;white-space:nowrap;min-width:80px;" data-i18n="vistalyze.settings.label_backend">Backend:</label>
+                        <select id="lz-generation-backend" class="text_pole" style="flex:1;">
+                            <option value="pollinations">Pollinations (cloud)</option>
+                            <option value="localsd">Local SD (ST extension)</option>
+                            <option value="comfyui">ComfyUI (local)</option>
+                        </select>
+                    </div>
+
+                    <div id="lz-comfyui-port-row" style="display:none;align-items:center;gap:8px;margin-top:4px;margin-bottom:8px;">
+                        <label style="font-size:0.85em;opacity:0.75;white-space:nowrap;min-width:80px;" data-i18n="vistalyze.settings.label_comfyui_port">ComfyUI Port:</label>
+                        <input type="number" id="lz-comfyui-port" class="text_pole" min="1024" max="65535" step="1" value="8188" style="width:100px;" />
+                        <span style="font-size:0.78em;opacity:0.55;">Default: 8188</span>
+                    </div>
+
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label class="checkbox_label" style="font-size:0.85em;cursor:pointer;">
                             <input type="checkbox" id="lz-dev-mode" />

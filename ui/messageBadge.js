@@ -80,7 +80,7 @@ function renderBadge($mes, msgId) {
              ">
             <span class="lz-badge-picker"
                   data-i18n="[title]vistalyze.badge.change_location"
-                  title="${escapeHtml(label)}"
+                  title="${translate('Change location for this message')}"
                   style="
                       display: inline-flex;
                       align-items: center;
@@ -90,12 +90,9 @@ function renderBadge($mes, msgId) {
                       border-radius: 10px;
                       border: 1px solid var(--SmartThemeBorderColor);
                       white-space: nowrap;
-                      max-width: min(220px, 100%);
-                      min-width: 0;
-                      overflow: hidden;
                   ">
-                <i class="fa-solid fa-location-dot" style="font-size:0.85em; flex-shrink:0;"></i>
-                <span class="lz-badge-label" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">${escapeHtml(label)}</span>
+                <i class="fa-solid fa-location-dot" style="font-size:0.85em;"></i>
+                <span class="lz-badge-label">${escapeHtml(label)}</span>
             </span>
             ${editIcon}
         </div>
